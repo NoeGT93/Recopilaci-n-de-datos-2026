@@ -1,5 +1,5 @@
 import SurveyForm from "@/components/SurveyForm";
-import { env, getInstrument } from "@/lib/server";
+import { env, getInstrument, loadMedia } from "@/lib/server";
 import { parseChannel } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
           <p className="muted" style={{ margin: 0 }}>La encuesta no está recibiendo respuestas en este momento. Gracias por su interés.</p>
         </div>
       ) : (
-        <SurveyForm siteKey={env().TURNSTILE_SITE_KEY} channel={channel} mode={inst.state} />
+        <SurveyForm siteKey={env().TURNSTILE_SITE_KEY} channel={channel} mode={inst.state} media={await loadMedia()} />
       )}
     </main>
   );

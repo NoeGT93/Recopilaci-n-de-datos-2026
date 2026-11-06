@@ -108,3 +108,17 @@ export const store = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getJson = (url: string): Promise<any> => fetch(url).then((r) => r.json());
+
+/** Reduce a ≤ 2000 px y JPEG cuando hace falta (también convierte HEIC de iPhone si el navegador lo decodifica). */
+export async function compress(file: File): Promise<Blob> {
+  const fine = ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
+  if (fine) return file;
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("compresión"))), "image/jpeg", 0.82));
+}

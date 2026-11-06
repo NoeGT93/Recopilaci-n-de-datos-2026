@@ -13,18 +13,6 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#111111" };
 
-/** Cordillera con nieve: trazo propio inspirado en la estética de la marca (no reproduce su logotipo). */
-function Mountains() {
-  return (
-    <svg className="brand-mark" viewBox="0 0 46 30" aria-hidden>
-      <path d="M1 27 13 9l5 7 7-13 9 14 4-5 7 15Z" fill="currentColor" />
-      <path d="m25 3-4.2 7.8 2.3-1.4 1.9 2.1 1.6-2.4 2.6 1.3Z" fill="#111" />
-      <path d="m13 9-3.1 4.6 1.8-.9 1.5 1.4 1.3-1.6Z" fill="#111" />
-      <path d="M1 28.5h44" stroke="var(--wood)" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${inter.variable} ${cinzel.variable}`}>
@@ -32,7 +20,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="topbar">
           <div className="topbar-inner">
             <a className="brand" href="/">
-              <Mountains />
+              {/* Logotipo oficial, usado con autorización de Coffee Bike. */}
+              <img className="brand-logo" src="/coffee-bike-logo.webp" width={44} height={44} alt="Coffee Bike" />
               <span className="brand-text">
                 <strong>Estudio <em>Coffee Bike</em></strong>
                 <span>Investigación · CUNOC–USAC</span>

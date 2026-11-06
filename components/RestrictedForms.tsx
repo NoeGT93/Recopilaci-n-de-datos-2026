@@ -1,8 +1,8 @@
 "use client";
-// Entrevista a la dirección y ficha de observación: acceso eligiendo el nombre y escribiendo el código.
+// Entrevista a la dirección y ficha de observación: acceso eligiendo el nombre de la lista de usuarios.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { INTERVIEW, OBSERVATION, OBS_OPTIONS, type Question } from "@/lib/instruments";
-import { Button, Notice, PersonalFields, getJson, postJson, store, uuid, type PersonalValues } from "./ui";
+import { Button, Notice, PersonalFields, compress, getJson, postJson, store, uuid, type PersonalValues } from "./ui";
 
 // ---------- Acceso ----------
 
@@ -12,12 +12,10 @@ const initials = (name: string) =>
 export function AccessGate({ instrument, people }: { instrument: "entrevista" | "observacion"; people: { id: string; label: string }[] }) {
   const remembered = `acceso-${instrument}`;
   const [person, setPerson] = useState<string | null>(null);
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const codeRef = useRef<HTMLInputElement>(null);
 
-  // Recordar en este dispositivo quién fue la última persona (solo el id de su acceso, nunca el código).
+  // Recordar en este dispositivo quién fue la última persona (solo el id de su acceso).
   useEffect(() => {
     const last = store.get<string>(remembered);
     if (last && people.some((p) => p.id === last)) setPerson(last);
@@ -25,10 +23,10 @@ export function AccessGate({ instrument, people }: { instrument: "entrevista" | 
 
   async function enter(e: React.FormEvent) {
     e.preventDefault();
-    if (!person || !code.trim()) return;
+    if (!person) return;
     setBusy(true);
     setError(null);
-    const r = await postJson<{ instrument?: string }>("/api/acceso", { id: person, code });
+    const r = await postJson<{ instrument?: string }>("/api/acceso", { id: person });
     setBusy(false);
     if (r.ok && r.data.instrument === instrument) {
       store.set(remembered, person);
@@ -37,16 +35,14 @@ export function AccessGate({ instrument, people }: { instrument: "entrevista" | 
     setError(r.data.error ?? "No se pudo ingresar.");
   }
 
+  const chosen = people.find((p) => p.id === person);
   return (
     <form className="card step" onSubmit={enter}>
       <p className="eyebrow">Acceso del equipo</p>
       <h1 style={{ fontSize: "1.5rem" }}>{instrument === "entrevista" ? "Entrevista a la dirección" : "Ficha de observación virtual"}</h1>
-      <p className="muted">
-        Elija su nombre y escriba el código que le entregó el equipo investigador. La sesión queda abierta en este dispositivo y sus
-        avances se guardan solos.
-      </p>
+      <p className="muted">Elija su nombre para ingresar. La sesión queda abierta en este dispositivo y sus avances se guardan solos.</p>
       {people.length === 0 ? (
-        <Notice>Aún no hay personas con acceso a este formulario. Pida al equipo investigador que le habilite.</Notice>
+        <Notice>Aún no hay usuarios cargados para este formulario. Pida al equipo investigador que le agregue.</Notice>
       ) : (
         <>
           <fieldset style={{ marginTop: "1.25rem" }}>
@@ -61,7 +57,6 @@ export function AccessGate({ instrument, people }: { instrument: "entrevista" | 
                     onChange={() => {
                       setPerson(p.id);
                       setError(null);
-                      requestAnimationFrame(() => codeRef.current?.focus());
                     }}
                   />
                   <span className="avatar" aria-hidden>{initials(p.label)}</span>
@@ -70,25 +65,9 @@ export function AccessGate({ instrument, people }: { instrument: "entrevista" | 
               ))}
             </div>
           </fieldset>
-          <div className="field" style={{ marginTop: "1.25rem", maxWidth: "20rem" }}>
-            <label htmlFor="code">Código de acceso</label>
-            <input
-              ref={codeRef}
-              id="code"
-              className="code-input"
-              type="text"
-              autoCapitalize="characters"
-              autoComplete="one-time-code"
-              spellCheck={false}
-              placeholder="XXXX-XXXX"
-              maxLength={20}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
-          </div>
-          {error && <Notice kind="error">{error}</Notice>}
+          {error && <div style={{ marginTop: "1rem" }}><Notice kind="error">{error}</Notice></div>}
           <div className="actions" style={{ justifyContent: "flex-start" }}>
-            <Button busy={busy} type="submit" disabled={!person || !code.trim()}>Ingresar</Button>
+            <Button busy={busy} type="submit" disabled={!person}>{chosen ? `Ingresar como ${chosen.label}` : "Ingresar"}</Button>
           </div>
         </>
       )}
@@ -118,20 +97,6 @@ export function LogoutButton({ name }: { name: string }) {
 
 type Photo = { id: string; item: string; size: number };
 const MAX = 5 * 1024 * 1024;
-
-/** Reduce a ≤ 2000 px y JPEG cuando hace falta (también convierte HEIC de iPhone si el navegador lo decodifica). */
-async function compress(file: File): Promise<Blob> {
-  const fine = ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
-  if (fine) return file;
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  bmp.close();
-  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("compresión"))), "image/jpeg", 0.82));
-}
 
 function Photos({ item, photos, setPhotos, ensureSaved, submissionId, disabled }: {
   item: string; photos: Photo[]; setPhotos: (f: (p: Photo[]) => Photo[]) => void;

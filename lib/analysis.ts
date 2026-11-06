@@ -18,7 +18,7 @@ export type Rec = {
   answers: Answer[];
 };
 
-export type Filters = { from: string | null; to: string | null; channel: string | null; version: string; status: string };
+export type Filters = { from: string | null; to: string | null; channel: string | null; version: string; status: string; includeTest?: boolean };
 
 export const STATUS_FILTERS = [
   ["todos", "Todos los estados"],
@@ -59,6 +59,7 @@ export function describeFilters(f: Filters): string {
   if (f.from || f.to) parts.push(`fechas ${f.from ?? "inicio"} a ${f.to ?? "hoy"}`);
   if (f.channel) parts.push(`canal «${f.channel}»`);
   parts.push(STATUS_FILTERS.find(([k]) => k === f.status)?.[1].toLowerCase() ?? f.status);
+  if (f.includeTest) parts.push("incluye registros de prueba");
   return parts.join(" · ");
 }
 
@@ -136,7 +137,7 @@ export function surveyAnalysis(recs: Rec[]) {
     .map((r) => [score(r, SCORES[0].items), score(r, SCORES[4].items)] as const)
     .filter((p): p is readonly [number, number] => p[0] !== null && p[1] !== null);
   const correlation = spearman(pairs.map((p) => p[0]), pairs.map((p) => p[1]));
-  return { nValid: valid.length, items, scores, pairs: pairs.length, excludedFromPairs: valid.length - pairs.length, correlation };
+  return { nValid: valid.length, items, scores, pairs: pairs.length, pairPoints: pairs.map((p) => [p[0], p[1]] as [number, number]), excludedFromPairs: valid.length - pairs.length, correlation };
 }
 
 // ---------- Entrevista ----------
@@ -207,6 +208,7 @@ export function correlationText(c: SpearmanResult): string {
 export function surveyInterpretations(a: ReturnType<typeof surveyAnalysis>, f: Filters, final: boolean): Interpretation[] {
   const filters = describeFilters(f);
   const common = [
+    ...(f.includeTest || f.status === "prueba" ? ["Incluye registros de prueba (pilotaje): no usar como resultado de la investigación."] : []),
     "Mide percepciones declaradas, no reconocimiento objetivo ni aciertos de una prueba visual.",
     "La muestra no es probabilística: los resultados no representan a toda la población de Quetzaltenango.",
     "La difusión voluntaria puede concentrar respuestas favorables.",
@@ -290,7 +292,7 @@ export type Analysis =
 
 /** Registros que entran al análisis: válidos; con el filtro «prueba», los enviados de prueba (pilotaje). */
 export const analysisSet = (recs: Rec[], f: Filters) =>
-  recs.filter((r) => (f.status === "prueba" ? isSubmitted(r) && !r.excluded : isValid(r)));
+  recs.filter((r) => (f.status === "prueba" || f.includeTest ? isSubmitted(r) && !r.excluded : isValid(r)));
 
 export function analyze(instrument: InstrumentCode, filtered: Rec[], f: Filters): Analysis {
   const recs = analysisSet(filtered, f);
@@ -309,6 +311,7 @@ export function parseFilters(get: (k: string) => string | null | undefined, curr
     channel: get("canal") && /^[a-z0-9-]{1,30}$/.test(get("canal")!) ? get("canal")! : null,
     version: get("version") && /^[\w.-]{1,20}$/.test(get("version")!) ? get("version")! : currentVersion,
     status: STATUS_FILTERS.some(([k]) => k === status) ? status! : "todos",
+    includeTest: get("prueba") === "1",
   };
 }
 

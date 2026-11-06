@@ -3,7 +3,7 @@
 // Requiere Turnstile en modo de prueba (.dev.vars.example) y acceso a la D1 local para sembrar una invitación.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:8787";
 const PERSIST = process.env.PERSIST;
@@ -83,23 +83,18 @@ console.log("bloqueo sin sesión: ok");
 
 // --- Invitaciones ---
 async function invite(instrument, label, days = 7) {
-  // Mismo formato que hashPassword(): PBKDF2-SHA256, 100 000 iteraciones, sobre el código normalizado.
-  const code = randomBytes(6).toString("hex").toUpperCase().slice(0, 8);
-  const salt = randomBytes(16);
-  const hash = "pbkdf2-sha256$100000$" + salt.toString("base64url") + "$" + pbkdf2Sync(code, salt, 100000, 32, "sha256").toString("base64url");
+  // Usuario cargado por el admin: se ingresa eligiendo el nombre (sin código).
   const iid = randomUUID();
-  sql(`INSERT INTO invitations (id, instrument, label, token_hash, created_at, expires_at) VALUES ('${iid}', '${instrument}', '${label}', '${hash}', datetime('now'), '${new Date(Date.now() + days * 864e5).toISOString()}')`);
-  assert.equal((await post("/api/acceso", { id: iid, code: "WRONG-000" })).status, 403, "código incorrecto");
-  // Se acepta en minúsculas y con guion/espacios (normalización).
-  const r = await post("/api/acceso", { id: iid, code: code.toLowerCase().slice(0, 4) + " - " + code.toLowerCase().slice(4) });
-  ok(r, "ingreso con nombre + código");
+  sql("INSERT INTO invitations (id, instrument, label, token_hash, created_at, expires_at) VALUES ('"+iid+"', '"+instrument+"', '"+label+"', 'sin-codigo:"+iid+"', datetime('now'), '"+new Date(Date.now() + days * 864e5).toISOString()+"')");
+  const r = await post("/api/acceso", { id: iid });
+  ok(r, "ingreso eligiendo el nombre");
   const cookie = r.headers.get("set-cookie");
   assert.match(cookie, /HttpOnly/i); assert.match(cookie, /Secure/i); assert.match(cookie, /SameSite=lax/i);
   const exp = Date.parse(/expires=([^;]+)/i.exec(cookie)[1]);
   assert.ok(exp > Date.now() + (days - 1) * 864e5, "la sesión dura toda la vigencia del acceso");
   return { iid, cookie: cookie.split(";")[0] };
 }
-assert.equal((await post("/api/acceso", { id: randomUUID(), code: "ABCD-EFGH" })).status, 403, "acceso inexistente");
+assert.equal((await post("/api/acceso", { id: randomUUID() })).status, 403, "usuario inexistente");
 const dir = await invite("entrevista", "Dirección E2E", 60);
 const C = (s) => ({ Cookie: s.cookie });
 const iv = randomUUID();
@@ -143,3 +138,11 @@ assert.equal((await fetch(BASE + "/api/formulario", { headers: C(obs) })).status
 sql(`UPDATE invitations SET expires_at = '2000-01-01T00:00:00Z' WHERE id = '${dir.iid}'`);
 assert.equal((await fetch(BASE + "/api/formulario", { headers: C(dir) })).status, 401, "invitación vencida");
 console.log("invitaciones y permisos: ok");
+
+// --- Imágenes de la encuesta: subir/quitar solo admin; ver es público ---
+let mfd = new FormData(); mfd.append("item", "i1"); mfd.append("file", new Blob([Buffer.from("89504e470d0a1a0a", "hex")], { type: "image/png" }), "x.png");
+assert.equal((await fetch(BASE + "/api/admin/medios", { method: "POST", headers: { Origin: BASE }, body: mfd })).status, 401, "subir imagen sin admin");
+assert.equal((await fetch(BASE + "/api/admin/medios?id=x", { method: "DELETE", headers: { Origin: BASE } })).status, 401, "quitar imagen sin admin");
+assert.equal((await fetch(BASE + "/api/medios/" + randomUUID())).status, 404, "imagen inexistente");
+assert.equal((await fetch(BASE + "/api/medios/" + encodeURIComponent("../ev"))).status, 404, "solo ids válidos (clave medios/<uuid>)");
+console.log("imágenes de la encuesta: ok");

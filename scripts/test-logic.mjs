@@ -119,7 +119,8 @@ assert.equal(A.csvCell(null), '""');
 assert.equal(A.csvCell(3), '"3"');
 assert.ok(A.toCsv([["a"]]).startsWith("﻿"));
 const pf = A.parseFilters((k) => ({ desde: "2026-11-01", canal: "<x>", estado: "nada" })[k], "1.0");
-assert.deepEqual(pf, { from: "2026-11-01", to: null, channel: null, version: "1.0", status: "todos" });
+assert.deepEqual(pf, { from: "2026-11-01", to: null, channel: null, version: "1.0", status: "todos", includeTest: false });
+assert.equal(A.analyze("encuesta", recs, { ...F, includeTest: true }).data.nValid, 6); // válidos + prueba enviados
 console.log("exportación: ok");
 
 // --- Datos personales con opciones cerradas ---

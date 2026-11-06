@@ -1,7 +1,7 @@
 // Encuesta pública. El navegador genera el id (UUID) y una clave de borrador; aquí solo se guarda el hash
 // de la clave. Turnstile se valida una vez, al iniciar; después la clave autoriza guardar, recuperar y enviar.
 import { SURVEY } from "@/lib/instruments";
-import { db, json, sha256, sameOrigin, rateLimit, clientKey, verifyTurnstile, getInstrument } from "@/lib/server";
+import { db, json, sha256, sameOrigin, rateLimit, clientKey, verifyTurnstile, getInstrument, loadMedia } from "@/lib/server";
 import { createStmts, replaceAnswers, personalStmt, finalizeStmt, touchStmt, getSubmission, UUID } from "@/lib/submissions";
 import { parseSurvey, parsePersonal, parseChannel, ValidationError } from "@/lib/validate";
 
@@ -66,9 +66,12 @@ export async function POST(req: Request) {
       if (!inst || inst.state === "cerrado") return json({ error: "La encuesta se cerró y ya no recibe respuestas." }, 403);
       const personal = parsePersonal(body.personal);
       const status = answered === SURVEY.items.length ? "completo" : "incompleto";
+      // Registra qué imágenes de referencia estaban activas, para poder comparar si cambian durante la recolección.
+      const media = (await loadMedia()).map((m) => m.id);
       await db().batch([
         ...replaceAnswers(id, rows, null),
         ...(personal ? [personalStmt(id, personal)] : []),
+        touchStmt(id, JSON.stringify({ media })),
         finalizeStmt(id, status),
       ]);
       // Solo se confirma después de que D1 completó la transacción.

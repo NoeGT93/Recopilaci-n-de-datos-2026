@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SCALE, SURVEY } from "@/lib/instruments";
 import Turnstile from "./Turnstile";
+import ItemIcon from "./ItemIcon";
 import { Button, Notice, PersonalFields, postJson, randomKey, store, uuid, type PersonalValues } from "./ui";
 
 type Answers = Record<string, string | null>;
@@ -94,7 +95,24 @@ function Progress({ index }: { index: number }) {
   );
 }
 
-export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string; channel: string; mode: "prueba" | "abierto" }) {
+export type Media = { id: string; item: string; caption: string | null };
+
+/** Imágenes de referencia cargadas por el equipo (portada o afirmación). */
+function MediaStrip({ items }: { items: Media[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="media-strip">
+      {items.map((m) => (
+        <figure key={m.id}>
+          <img src={"/api/medios/" + m.id} alt={m.caption ?? "Imagen de referencia"} loading="lazy" decoding="async" />
+          {m.caption && <figcaption>{m.caption}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+export default function SurveyForm({ siteKey, channel, mode, media = [] }: { siteKey: string; channel: string; mode: "prueba" | "abierto"; media?: Media[] }) {
   const [s, setS] = useState<Saved | null>(null);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [adult, setAdult] = useState<boolean | null>(null);
@@ -265,15 +283,14 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
 
       {st.step === "intro" && (
         <section className="card step">
-          {/* Franja negra con cordillera, como el frente del carrito; la línea de madera evoca su cubierta. */}
+          {/* Franja negra con el logotipo, como el frente del carrito; la línea de madera evoca su cubierta. */}
           <div className="hero-band">
-            <svg className="hero-mountains" viewBox="0 0 320 90" aria-hidden>
-              <path d="M0 90 70 38l26 22 48-52 46 46 22-18 50 34 58-24v44Z" fill="#fff" />
-              <path d="m144 8-14 22 7-3 6 6 5-7 8 4Z M70 38l-10 9 6-1 4 4 4-4 5 1Z" fill="#111" />
-            </svg>
+            <img className="hero-logo" src="/coffee-bike-logo.webp" width={104} height={104} alt="Coffee Bike" />
             <p className="eyebrow" style={{ color: "var(--wood)" }}>Encuesta · 2026</p>
             <h1 ref={hRef} tabIndex={-1}>¿Qué opina de Coffee&nbsp;Bike?</h1>
           </div>
+          <MediaStrip items={media.filter((m) => m.item === "portada")} />
+          <p className="hero-note">Estudio académico independiente de la Maestría en Marketing Estratégico y Alta Gerencia (CUNOC–USAC). Sus respuestas son confidenciales y no se comparten de forma individual con el negocio.</p>
           <p className="muted">{SURVEY.objective}</p>
           <div className="facts">
             <span className="tag accent">15 afirmaciones</span>
@@ -369,10 +386,13 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
           <Progress index={idx} />
           <fieldset className="question" key={idx}>
             <legend className="statement" ref={heading as React.RefObject<HTMLLegendElement>} tabIndex={-1}>
-              <span className="statement-num">Afirmación {idx + 1}</span>
-              <br />
+              <span className="statement-head">
+                <ItemIcon id={SURVEY.items[idx].id} />
+                <span className="statement-num">Afirmación {idx + 1}</span>
+              </span>
               {SURVEY.items[idx].text}
             </legend>
+            <MediaStrip items={media.filter((m) => m.item === SURVEY.items[idx].id)} />
             <div className="scale">
               {SCALE.map((o, k) => (
                 <label className="opt" key={o.value}>

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { INSTRUMENT_NAMES, type InstrumentCode } from "@/lib/instruments";
 import { db, getInstrument, now, requireRole } from "@/lib/server";
-import { ChannelLink, CopyLink, InvitationForm, NewCodeButton } from "@/components/AdminClient";
+import { ChannelLink, CopyLink, InvitationForm } from "@/components/AdminClient";
 import { extendInvitation, revokeInvitation, updateInstrument } from "../actions";
 
 const CODES: InstrumentCode[] = ["encuesta", "entrevista", "observacion"];
@@ -23,8 +23,8 @@ export default async function Enlaces() {
       <section className="card">
         <div className="card-title"><h2>Enlaces para compartir</h2></div>
         <p className="small muted">
-          Son tres enlaces fijos. La encuesta es pública. En la entrevista y la observación cada persona elige su nombre y escribe su
-          código; quien no tenga código no puede entrar.
+          Son tres enlaces fijos. La encuesta es pública. En la entrevista y la observación cada persona elige su nombre de la lista
+          de usuarios cargados abajo; quien no esté en la lista no puede entrar. Comparta estos dos enlaces solo con el equipo.
         </p>
         <h3>Encuesta a clientes (pública)</h3>
         <CopyLink url={`${origin}/encuesta/clientes`} label="Encuesta a clientes" />
@@ -39,11 +39,11 @@ export default async function Enlaces() {
       </section>
 
       <section className="card">
-        <div className="card-title"><h2>Personas con acceso</h2></div>
+        <div className="card-title"><h2>Usuarios con acceso</h2></div>
         <p className="small muted">
-          Agregue a cada investigador (o a la dirección) con el nombre que verá en la lista. Se genera un código personal de 8
-          caracteres que solo se muestra una vez. La sesión queda abierta en su dispositivo durante toda la vigencia y lo que escriben
-          se guarda solo. Si alguien pierde su código, use «Nuevo código».
+          Agregue a cada investigador (o a la dirección) con el nombre que verá en la lista. Al ingresar solo elige su nombre; la
+          sesión queda abierta en su dispositivo durante toda la vigencia y lo que escribe se guarda solo. «Revocar» lo quita de la
+          lista y cierra su sesión de inmediato.
         </p>
         <InvitationForm links={links} />
         <div className="table-wrap" style={{ marginTop: "1.25rem" }}>
@@ -64,7 +64,6 @@ export default async function Enlaces() {
                     <td>
                       {!v.revoked_at && (
                         <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
-                          <NewCodeButton id={v.id} link={links[v.instrument]} />
                           <form action={extendInvitation}>
                             <input type="hidden" name="id" value={v.id} />
                             <button className="btn secondary small" type="submit">+90 días</button>

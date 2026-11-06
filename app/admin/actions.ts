@@ -7,7 +7,7 @@ import { CURRENT_VERSION, type InstrumentCode } from "@/lib/instruments";
 import { analyze, applyFilters, describeFilters, parseFilters } from "@/lib/analysis";
 import { METHOD_VERSION } from "@/lib/stats";
 import {
-  db, env, now, rateLimit, clientKey, verifyPassword, createSession, destroySession, generateCode, normalizeCode,
+  db, env, now, rateLimit, clientKey, verifyPassword, createSession, destroySession, randomToken,
   hashPassword, adminPasswordHash, closeOtherAdminSessions,
   requireRole, audit, loadRecords,
 } from "@/lib/server";
@@ -70,10 +70,10 @@ export async function updateInstrument(form: FormData) {
   revalidatePath("/admin", "layout");
 }
 
-type CodeResult = { code?: string; name?: string; error?: string };
+type AccessResult = { name?: string; error?: string };
 
-/** Da acceso a una persona: aparecerá en la lista de nombres del enlace de su instrumento. */
-export async function createInvitation(_: unknown, form: FormData): Promise<CodeResult> {
+/** Carga un usuario: aparecerá en la lista de nombres del enlace de su instrumento (sin código). */
+export async function createInvitation(_: unknown, form: FormData): Promise<AccessResult> {
   await admin();
   const instrument = String(form.get("instrument"));
   if (instrument !== "entrevista" && instrument !== "observacion") return { error: "Instrumento inválido." };
@@ -85,31 +85,16 @@ export async function createInvitation(_: unknown, form: FormData): Promise<Code
     .prepare("SELECT 1 FROM invitations WHERE instrument = ? AND label = ? AND revoked_at IS NULL AND expires_at > ?")
     .bind(instrument, name, now())
     .first();
-  if (dup) return { error: "Ya existe un acceso vigente con ese nombre en este instrumento. Use «Nuevo código» en la lista." };
-  const accessCode = generateCode();
+  if (dup) return { error: "Ya existe un usuario vigente con ese nombre en este formulario." };
   const id = crypto.randomUUID();
   await db()
     .prepare("INSERT INTO invitations (id, instrument, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(id, instrument, name, await hashPassword(normalizeCode(accessCode)), now(), new Date(Date.now() + days * 86400_000).toISOString())
+    // token_hash ya no se usa para ingresar; se llena con un valor aleatorio único (columna NOT NULL UNIQUE).
+    .bind(id, instrument, name, `sin-codigo:${randomToken(16)}`, now(), new Date(Date.now() + days * 86400_000).toISOString())
     .run();
   await audit("admin", "crear_acceso", id, { instrument, days });
   revalidatePath("/admin/enlaces");
-  // El código solo se muestra ahora; en D1 queda su hash.
-  return { code: accessCode, name };
-}
-
-/** Genera un código nuevo (el anterior deja de servir y se cierran sus sesiones). */
-export async function newCode(id: string): Promise<CodeResult> {
-  await admin();
-  const inv = await db().prepare("SELECT label FROM invitations WHERE id = ? AND revoked_at IS NULL").bind(id).first<{ label: string }>();
-  if (!inv) return { error: "Acceso no encontrado o revocado." };
-  const accessCode = generateCode();
-  await db().batch([
-    db().prepare("UPDATE invitations SET token_hash = ? WHERE id = ?").bind(await hashPassword(normalizeCode(accessCode)), id),
-    db().prepare("DELETE FROM sessions WHERE invitation_id = ?").bind(id),
-  ]);
-  await audit("admin", "nuevo_codigo", id);
-  return { code: accessCode, name: inv.label };
+  return { name };
 }
 
 /** Extiende la vigencia (y por tanto la sesión) de un acceso. */

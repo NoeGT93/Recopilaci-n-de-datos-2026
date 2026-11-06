@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import QRCode from "qrcode";
-import { login, createInvitation, newCode, revealPersonal, changePassword } from "@/app/admin/actions";
+import { login, createInvitation, revealPersonal, changePassword } from "@/app/admin/actions";
 import { PERSONAL_FIELDS } from "@/lib/instruments";
 import { Button, Notice } from "./ui";
 
@@ -12,6 +12,7 @@ const LINKS = [
   ["/admin/entrevista", "Entrevista"],
   ["/admin/observacion", "Observación"],
   ["/admin/enlaces", "Enlaces y accesos"],
+  ["/admin/imagenes", "Imágenes de la encuesta"],
   ["/admin/contrasena", "Contraseña"],
 ];
 
@@ -92,15 +93,14 @@ export function ChannelLink({ base }: { base: string }) {
   );
 }
 
-/** Muestra un código recién generado (solo esta vez) con botón para copiar un mensaje listo para enviar. */
-function CodeCard({ name, code, link }: { name: string; code: string; link: string }) {
+/** Confirmación al cargar un usuario, con un mensaje listo para enviar por WhatsApp o correo. */
+function AccessCreated({ name, link }: { name: string; link: string }) {
   const [copied, setCopied] = useState(false);
-  const message = `Hola ${name}: ingrese a ${link} , elija su nombre y escriba el código ${code}. Sus avances se guardan solos.`;
+  const message = 'Hola ' + name + ': ingrese a ' + link + ' y elija su nombre en la lista. Sus avances se guardan solos.';
   return (
     <Notice kind="ok">
-      <p><strong>Código de {name}</strong> — cópielo ahora; por seguridad no se vuelve a mostrar.</p>
+      <p><strong>{name}</strong> ya aparece en la lista y puede ingresar.</p>
       <div className="row" style={{ margin: "0.6rem 0" }}>
-        <span className="code-show">{code}</span>
         <button
           type="button"
           className="btn secondary small"
@@ -139,37 +139,14 @@ export function InvitationForm({ links }: { links: Record<"entrevista" | "observ
           <label htmlFor="inv-d">Vigencia (días)</label>
           <input id="inv-d" name="days" type="number" min={1} max={365} defaultValue={90} required />
         </div>
-        <Button busy={pending} type="submit">Dar acceso</Button>
+        <Button busy={pending} type="submit">Agregar usuario</Button>
       </div>
       {state?.error && <Notice kind="error">{state.error}</Notice>}
-      {state?.code && <CodeCard name={state.name!} code={state.code} link={links[instrument]} />}
+      {state?.name && <AccessCreated name={state.name} link={links[instrument]} />}
     </form>
   );
 }
 
-export function NewCodeButton({ id, link }: { id: string; link: string }) {
-  const [res, setRes] = useState<{ code?: string; name?: string; error?: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  if (res?.code) return <CodeCard name={res.name!} code={res.code} link={link} />;
-  return (
-    <>
-      <button
-        type="button"
-        className="btn secondary small"
-        disabled={busy}
-        onClick={async () => {
-          if (!confirm("El código anterior dejará de funcionar y se cerrará su sesión. ¿Continuar?")) return;
-          setBusy(true);
-          setRes(await newCode(id));
-          setBusy(false);
-        }}
-      >
-        Nuevo código
-      </button>
-      {res?.error && <span className="small" style={{ color: "var(--danger)" }}>{res.error}</span>}
-    </>
-  );
-}
 
 export function RevealPersonal({ id }: { id: string }) {
   const [data, setData] = useState<Record<string, unknown> | null | undefined>(undefined);

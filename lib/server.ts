@@ -51,18 +51,6 @@ export async function adminPasswordHash() {
   return row?.value ?? env().ADMIN_PASSWORD_HASH;
 }
 
-// Códigos de acceso del equipo: 8 caracteres sin ambiguos (0/O, 1/I/L), mostrados como XXXX-XXXX.
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-export function generateCode() {
-  let c = "";
-  while (c.length < 8) {
-    const x = crypto.getRandomValues(new Uint8Array(1))[0];
-    if (x < 248) c += CODE_ALPHABET[x % 31]; // 248 = 8·31: sin sesgo de módulo
-  }
-  return `${c.slice(0, 4)}-${c.slice(4)}`;
-}
-export const normalizeCode = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, "");
-
 // ---------- Peticiones ----------
 
 /** IP solo como hash (para límites de intentos); nunca se guarda en claro. */
@@ -227,5 +215,11 @@ export async function activePeople(instrument: "entrevista" | "observacion") {
     .prepare("SELECT id, label FROM invitations WHERE instrument = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY label")
     .bind(instrument, now())
     .all<{ id: string; label: string }>();
+  return r.results;
+}
+
+/** Imágenes de referencia activas de la encuesta (portada y por afirmación). */
+export async function loadMedia() {
+  const r = await db().prepare("SELECT id, item, caption FROM survey_media ORDER BY created_at").all<{ id: string; item: string; caption: string | null }>();
   return r.results;
 }

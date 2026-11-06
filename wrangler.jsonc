@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Proyecto independiente: Worker, D1 y R2 propios (no comparte recursos con ABACSA).
+  "name": "recopilacion-datos-2026",
+  "account_id": "e77585da7477b722f1272cf770be26f5",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "recopilacion-datos-2026" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recopilacion-datos-2026",
+      "database_id": "0f04e815-86aa-4c9f-a0f8-7ac660015bfc",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Bucket privado (sin acceso público): las descargas pasan por /api/evidencia/[id] con autorización.
+  "r2_buckets": [{ "binding": "EVIDENCE", "bucket_name": "recopilacion-datos-2026-evidencias" }],
+  "vars": {
+    // Clave pública del widget Turnstile (la secreta va en TURNSTILE_SECRET_KEY).
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAF1pwF3mrsEHGd7A"
+  },
+  "observability": { "enabled": true }
+  // Secretos (fuera del repositorio):
+  //   npm run hash-password | npx wrangler secret put ADMIN_PASSWORD_HASH
+  //   npx wrangler secret put TURNSTILE_SECRET_KEY
+}

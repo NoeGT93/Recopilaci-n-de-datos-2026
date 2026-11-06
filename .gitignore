@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.open-next/
+.wrangler/
+next-env.d.ts
+*.tsbuildinfo
+# Secretos y datos: nunca al repositorio público
+.dev.vars
+.env*
+!.env.example
+*.local.txt
+exports/
+*.csv
+*.xlsx

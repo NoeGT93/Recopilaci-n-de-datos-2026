@@ -98,6 +98,18 @@ npm run --silent hash-password | npx wrangler secret put ADMIN_PASSWORD_HASH
 npx wrangler secret put TURNSTILE_SECRET_KEY
 ```
 
+En Windows, `opennextjs-cloudflare deploy` (y `wrangler deploy`, que lo invoca) también falla con
+`SQLITE_CANTOPEN` si la carpeta del proyecto tiene una ruta larga. Despliegue desde un clon en una ruta
+corta (sin `.dev.vars`):
+
+```bash
+git clone https://github.com/NoeGT93/Recopilaci-n-de-datos-2026.git C:/wp/rd26src
+cd C:/wp/rd26src && npm ci && npm run deploy
+```
+
+URL de producción: `https://recopilacion-datos-2026.nescobar1993.workers.dev` (cuenta
+`e77585da7477b722f1272cf770be26f5`). Los tres instrumentos empiezan **En prueba**.
+
 ## Contraseña del admin
 
 ```bash

@@ -152,7 +152,8 @@ las celdas que empiezan con `= + - @` se neutralizan. No suba exportaciones al r
 Cada afirmación muestra una ilustración de línea (banco de imágenes con licencia del equipo). Por licencia
 **no están en este repositorio público**: viven en R2 como `ilustraciones/i1.webp` … `i15.webp` y se sirven
 en `/api/ilustraciones/iN`. Si falta una, se muestra la escena SVG de respaldo (`components/ItemBanner.tsx`).
-Para reemplazar una (WebP con fondo blanco o transparente, ~560 px de alto):
+Para reemplazar una (WebP con fondo blanco o transparente, ~560 px de alto), súbala y luego aumente
+`ILLU_VERSION` en `components/CafeScene.tsx` para que los navegadores no muestren la versión en caché:
 
 ```bash
 npx wrangler r2 object put recopilacion-datos-2026-evidencias/ilustraciones/i5.webp --file i5.webp --content-type image/webp --remote

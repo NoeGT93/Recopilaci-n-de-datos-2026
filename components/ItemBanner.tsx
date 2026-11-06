@@ -2,7 +2,8 @@
 // Ilustración de referencia por afirmación (SVG, paleta de la marca). Muestra el TEMA de la pregunta con
 // elementos genéricos (insignia de montañas, letreros sin texto) y no el logotipo ni el nombre real, para no
 // adelantar las respuestas de reconocimiento (ítems 10–15). Luz desde arriba a la izquierda en todas las escenas.
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
+import ItemIcon from "./ItemIcon";
 
 const C = {
   ink: "#151515", white: "#fffaf3", paper: "#fbf6ee",
@@ -602,7 +603,8 @@ function Scene({ id }: { id: string }) {
   }
 }
 
-export default function ItemBanner({ id }: { id: string }) {
+/** Escena dibujada en código: respaldo si la ilustración de R2 no está disponible. */
+function SvgScene({ id }: { id: string }) {
   return (
     <div className="item-banner" aria-hidden>
       <svg viewBox="0 0 640 220" preserveAspectRatio="xMidYMid slice">
@@ -612,6 +614,22 @@ export default function ItemBanner({ id }: { id: string }) {
           <Scene id={id} />
         </Pid.Provider>
       </svg>
+    </div>
+  );
+}
+
+/**
+ * Banner de la afirmación: ilustración de línea (banco de imágenes, servida desde R2) sobre fondo crema con un
+ * círculo de madera detrás del personaje, el ícono del tema y el filete de madera de la marca.
+ */
+export default function ItemBanner({ id }: { id: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <SvgScene id={id} />;
+  return (
+    <div className="item-banner photo" aria-hidden>
+      <span className="banner-sun" />
+      <img src={"/api/ilustraciones/" + id} alt="" decoding="async" onError={() => setFailed(true)} />
+      <span className="banner-topic"><ItemIcon id={id} /></span>
     </div>
   );
 }

@@ -147,6 +147,17 @@ En cada dashboard: «CSV analítico» (sin identificadores personales; respeta l
 personales» (aparte, auditado, se une por `id_registro`). CSV UTF-8 con BOM, abre directamente en Excel;
 las celdas que empiezan con `= + - @` se neutralizan. No suba exportaciones al repositorio (`.gitignore`).
 
+## Ilustraciones de las afirmaciones
+
+Cada afirmación muestra una ilustración de línea (banco de imágenes con licencia del equipo). Por licencia
+**no están en este repositorio público**: viven en R2 como `ilustraciones/i1.webp` … `i15.webp` y se sirven
+en `/api/ilustraciones/iN`. Si falta una, se muestra la escena SVG de respaldo (`components/ItemBanner.tsx`).
+Para reemplazar una (WebP con fondo blanco o transparente, ~560 px de alto):
+
+```bash
+npx wrangler r2 object put recopilacion-datos-2026-evidencias/ilustraciones/i5.webp --file i5.webp --content-type image/webp --remote
+```
+
 ## Respaldo y recuperación
 
 - D1 Time Travel (30 días en Workers Paid):

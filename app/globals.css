@@ -394,3 +394,14 @@ fieldset.card { min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .item-banner { animation: fade 150ms ease; } }
 .banner-thumb { width: 180px; } .banner-thumb .item-banner { margin: 0; animation: none; } @media (max-width: 40rem) { .media-admin-row { grid-template-columns: 1fr; } .banner-thumb { width: 100%; } }
 .qnav .btn { white-space: normal; text-align: center; line-height: 1.25; }
+
+/* Banner con ilustración de línea: el blanco del dibujo se funde con el crema (multiply). */
+.item-banner.photo { position: relative; display: grid; place-items: center; aspect-ratio: 2 / 1; background: radial-gradient(120% 90% at 50% 10%, #fbf5ec 0%, #f2e6d4 70%, #ead9c0 100%); border-bottom: 4px solid var(--wood); }
+.item-banner.photo img { position: relative; height: 96%; width: auto; max-width: 92%; object-fit: contain; align-self: end; mix-blend-mode: multiply; }
+.item-banner.photo .banner-sun { position: absolute; width: 58%; aspect-ratio: 1; left: 21%; top: 14%; border-radius: 50%; background: radial-gradient(circle, #e9d2ae 0%, #e2c597 55%, rgba(226, 197, 151, 0) 72%); opacity: 0.7; }
+.item-banner.photo .banner-topic { position: absolute; top: 10px; left: 10px; }
+.item-banner.photo .banner-topic .item-icon { width: 38px; height: 38px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
+.item-banner.photo .banner-topic svg { width: 22px; height: 22px; }
+@media (max-width: 30rem) { .item-banner.photo { aspect-ratio: 16 / 10; } }
+.banner-thumb .item-banner.photo { aspect-ratio: 2 / 1; }
+.banner-thumb .banner-topic { display: none; }

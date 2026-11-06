@@ -189,7 +189,6 @@ export default function CafeScene({ id }: { id: string }) {
     <svg viewBox="0 0 640 340" preserveAspectRatio="xMidYMid slice" aria-hidden>
       <defs>
         <linearGradient id={`${pid}-wall`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fbf5ec" /><stop offset="1" stopColor="#efe2cd" /></linearGradient>
-        <radialGradient id={`${pid}-sun`} cx="0.5" cy="0.5" r="0.5"><stop offset="0" stopColor="#ead3ae" /><stop offset="0.6" stopColor="#e4c899" stopOpacity="0.8" /><stop offset="1" stopColor="#e4c899" stopOpacity="0" /></radialGradient>
       </defs>
       <rect width="640" height="340" fill={`url(#${pid}-wall)`} />
       <path d="M0 230 H640" stroke={WOOD_D} strokeWidth="1.5" opacity="0.35" />
@@ -199,7 +198,6 @@ export default function CafeScene({ id }: { id: string }) {
       {layout === "bar" && (<><Menu x={side === "left" ? 40 : 482} y={46} /><Lamp x={side === "left" ? 186 : 454} len={30} /></>)}
       {layout === "plain" && (<><Hanging x={60} /><Hanging x={590} /></>)}
 
-      <circle cx={charX} cy={150} r={120} fill={`url(#${pid}-sun)`} />
       {/* Personaje (blanco del dibujo se funde con la pared) */}
       <image href={`/api/ilustraciones/${id}`} x={charX - 150} y={30} width="300" height="250" preserveAspectRatio="xMidYMax meet" style={{ mixBlendMode: "multiply" }} />
 

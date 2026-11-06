@@ -1,5 +1,4 @@
-import { INTERVIEW } from "@/lib/instruments";
-import { getInstrument, requireRole } from "@/lib/server";
+import { activePeople, getInstrument, requireRole } from "@/lib/server";
 import { AccessGate, InterviewForm, LogoutButton } from "@/components/RestrictedForms";
 
 export const dynamic = "force-dynamic";
@@ -10,21 +9,19 @@ export default async function Page() {
   const inst = session ? await getInstrument("entrevista") : null;
   return (
     <main className="page">
-      <header className="masthead">
-        <p className="org">CUNOC · USAC · Maestría en Marketing Estratégico y Alta Gerencia</p>
-        <div className="row spread">
-          <h1 style={{ margin: 0 }}>{INTERVIEW.title}</h1>
-          {session && <LogoutButton />}
-        </div>
-      </header>
       {!session ? (
-        <AccessGate instrument="entrevista" />
-      ) : inst?.state === "cerrado" ? (
-        <p>El formulario no está recibiendo respuestas en este momento.</p>
+        <AccessGate instrument="entrevista" people={await activePeople("entrevista")} />
       ) : (
         <>
-          {inst?.state === "prueba" && <div className="notice accent" style={{ marginBottom: "1rem" }}><strong>Modo de prueba.</strong> Este registro se marcará como prueba.</div>}
-          <InterviewForm />
+          <div className="row spread" style={{ marginBottom: "1rem" }}>
+            {inst?.state === "prueba" ? <span className="tag accent"><span className="dot" />Modo de prueba</span> : <span />}
+            <LogoutButton name={session.label ?? "Dirección"} />
+          </div>
+          {inst?.state === "cerrado" ? (
+            <div className="card"><p className="muted" style={{ margin: 0 }}>El formulario no está recibiendo respuestas en este momento.</p></div>
+          ) : (
+            <InterviewForm />
+          )}
         </>
       )}
     </main>

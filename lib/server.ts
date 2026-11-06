@@ -51,6 +51,18 @@ export async function adminPasswordHash() {
   return row?.value ?? env().ADMIN_PASSWORD_HASH;
 }
 
+// Códigos de acceso del equipo: 8 caracteres sin ambiguos (0/O, 1/I/L), mostrados como XXXX-XXXX.
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export function generateCode() {
+  let c = "";
+  while (c.length < 8) {
+    const x = crypto.getRandomValues(new Uint8Array(1))[0];
+    if (x < 248) c += CODE_ALPHABET[x % 31]; // 248 = 8·31: sin sesgo de módulo
+  }
+  return `${c.slice(0, 4)}-${c.slice(4)}`;
+}
+export const normalizeCode = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
 // ---------- Peticiones ----------
 
 /** IP solo como hash (para límites de intentos); nunca se guarda en claro. */
@@ -116,12 +128,11 @@ export async function audit(actor: string, action: string, target: string | null
 
 const COOKIE = "__Host-sesion";
 const ADMIN_HOURS = 8;
-const INVITE_DAYS = 7;
 
 export async function createSession(role: Role, invitationId: string | null, inviteExpires?: string) {
   const token = randomToken();
-  const max = new Date(Date.now() + (role === "admin" ? ADMIN_HOURS * 3600_000 : INVITE_DAYS * 86400_000)).toISOString();
-  const expires = inviteExpires && inviteExpires < max ? inviteExpires : max;
+  // Admin: 8 h. Equipo y dirección: la sesión dura lo mismo que su acceso (pueden tardar semanas en responder).
+  const expires = role === "admin" || !inviteExpires ? new Date(Date.now() + ADMIN_HOURS * 3600_000).toISOString() : inviteExpires;
   await db()
     .prepare("INSERT INTO sessions (token_hash, role, invitation_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
     .bind(await sha256(token), role, invitationId, now(), expires)
@@ -208,4 +219,13 @@ export async function loadRecords(code: InstrumentCode): Promise<Rec[]> {
   for (const a of answers.results as (Rec["answers"][number] & { submission_id: string })[])
     byId.get(a.submission_id)?.answers.push({ item: a.item, value: a.value, num: a.num, text: a.text });
   return [...byId.values()];
+}
+
+/** Nombres con acceso vigente a un instrumento (para elegir al ingresar). */
+export async function activePeople(instrument: "entrevista" | "observacion") {
+  const r = await db()
+    .prepare("SELECT id, label FROM invitations WHERE instrument = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY label")
+    .bind(instrument, now())
+    .all<{ id: string; label: string }>();
+  return r.results;
 }

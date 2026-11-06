@@ -3,7 +3,7 @@
 // Requiere Turnstile en modo de prueba (.dev.vars.example) y acceso a la D1 local para sembrar una invitación.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:8787";
 const PERSIST = process.env.PERSIST;
@@ -75,7 +75,7 @@ for (const [path, code] of [["/api/formulario", 401], ["/api/admin/exportar?inst
 assert.equal((await post("/api/formulario", { action: "save", id: randomUUID() })).status, 401);
 for (const page of ["/entrevista/direccion", "/observacion", "/admin"]) {
   const html = await (await fetch(BASE + page)).text();
-  assert.ok(/Acceso restringido|Contraseña/.test(html) && !/Enviar entrevista|Nueva ficha|Resumen general/.test(html), `página ${page} protegida`);
+  assert.ok(/Acceso del equipo|Contraseña/.test(html) && !/Enviar entrevista|Nueva ficha|Resumen general/.test(html), `página ${page} protegida`);
 }
 const home = await (await fetch(BASE + "/")).text();
 assert.ok(!/entrevista|observacion|admin/i.test(home.replace(/<script[\s\S]*?<\/script>/g, "")), "portada sin directorio interno");
@@ -83,18 +83,24 @@ console.log("bloqueo sin sesión: ok");
 
 // --- Invitaciones ---
 async function invite(instrument, label, days = 7) {
-  const token = b64url(randomBytes(24));
-  const hash = createHash("sha256").update(token).digest("base64url");
+  // Mismo formato que hashPassword(): PBKDF2-SHA256, 100 000 iteraciones, sobre el código normalizado.
+  const code = randomBytes(6).toString("hex").toUpperCase().slice(0, 8);
+  const salt = randomBytes(16);
+  const hash = "pbkdf2-sha256$100000$" + salt.toString("base64url") + "$" + pbkdf2Sync(code, salt, 100000, 32, "sha256").toString("base64url");
   const iid = randomUUID();
   sql(`INSERT INTO invitations (id, instrument, label, token_hash, created_at, expires_at) VALUES ('${iid}', '${instrument}', '${label}', '${hash}', datetime('now'), '${new Date(Date.now() + days * 864e5).toISOString()}')`);
-  const r = await post("/api/acceso", { token });
-  ok(r, "canje de invitación");
+  assert.equal((await post("/api/acceso", { id: iid, code: "WRONG-000" })).status, 403, "código incorrecto");
+  // Se acepta en minúsculas y con guion/espacios (normalización).
+  const r = await post("/api/acceso", { id: iid, code: code.toLowerCase().slice(0, 4) + " - " + code.toLowerCase().slice(4) });
+  ok(r, "ingreso con nombre + código");
   const cookie = r.headers.get("set-cookie");
   assert.match(cookie, /HttpOnly/i); assert.match(cookie, /Secure/i); assert.match(cookie, /SameSite=lax/i);
+  const exp = Date.parse(/expires=([^;]+)/i.exec(cookie)[1]);
+  assert.ok(exp > Date.now() + (days - 1) * 864e5, "la sesión dura toda la vigencia del acceso");
   return { iid, cookie: cookie.split(";")[0] };
 }
-assert.equal((await post("/api/acceso", { token: b64url(randomBytes(24)) })).status, 403, "invitación inexistente");
-const dir = await invite("entrevista", "Dirección E2E");
+assert.equal((await post("/api/acceso", { id: randomUUID(), code: "ABCD-EFGH" })).status, 403, "acceso inexistente");
+const dir = await invite("entrevista", "Dirección E2E", 60);
 const C = (s) => ({ Cookie: s.cookie });
 const iv = randomUUID();
 r = await post("/api/formulario", { action: "save", id: iv, answers: { p4: { values: ["manual", "no_sabe"] } } }, C(dir));
@@ -115,7 +121,7 @@ assert.equal((await fetch(`${BASE}/api/evidencia/${photo}`, { headers: C(dir) })
 assert.equal((await fetch(`${BASE}/api/evidencia/${photo}`)).status, 404, "foto sin sesión");
 assert.equal((await fetch(BASE + "/api/admin/exportar?instrumento=encuesta", { headers: C(dir) })).status, 401, "dirección sin acceso a resultados");
 const obsPage = await (await fetch(BASE + "/observacion", { headers: C(dir) })).text();
-assert.ok(/Acceso restringido/.test(obsPage), "dirección sin acceso a observación");
+assert.ok(/Acceso del equipo/.test(obsPage), "dirección sin acceso a observación");
 const [e1, e2] = await Promise.all([post("/api/formulario", { action: "submit", id: iv, answers: { p1: { values: ["calidad"] } } }, C(dir)), post("/api/formulario", { action: "submit", id: iv, answers: { p1: { values: ["calidad"] } } }, C(dir))]);
 ok(e1, "envío entrevista"); ok(e2, "reenvío entrevista");
 assert.equal(sql(`SELECT COUNT(*) n FROM answers WHERE submission_id = '${iv}' AND value IS NOT NULL`)[0].n, 1, "entrevista sin duplicados");

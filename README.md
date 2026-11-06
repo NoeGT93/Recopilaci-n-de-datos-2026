@@ -7,8 +7,8 @@ Coffee Bike en Quetzaltenango. Digitaliza tres instrumentos del documento «Inst
 | Instrumento | Ruta | Acceso |
 |---|---|---|
 | Encuesta a clientes (15 ítems) | `/encuesta/clientes` | Pública (Turnstile) |
-| Entrevista a la dirección (12 preguntas) | `/entrevista/direccion` | Invitación revocable con vencimiento |
-| Ficha de observación virtual (8 criterios) | `/observacion` | Invitación del equipo investigador |
+| Entrevista a la dirección (12 preguntas) | `/entrevista/direccion` | Nombre + código personal (revocable, con vencimiento) |
+| Ficha de observación virtual (8 criterios) | `/observacion` | Nombre + código personal del equipo investigador |
 | Administración y resultados | `/admin` | Contraseña |
 
 La correspondencia pregunta → campo → tipo → validación está en [docs/MAPEO.md](docs/MAPEO.md).
@@ -40,8 +40,9 @@ de Next); no se ejecutan en el Worker. postcss se fuerza a 8.5.32 con `overrides
   guarda «sigue en borrador»; un doble clic o reintento no duplica. «Respuesta recibida» solo se muestra
   después de que D1 confirma. No se impide que una persona anónima responda varias veces (no hay
   identificación); el canal de captación y el límite por IP ayudan a detectar patrones.
-- **Invitaciones**: el código viaja en el fragmento `#acceso=…`, que el navegador no envía al servidor
-  (no queda en registros ni en Referer). Se canjea por una cookie de sesión limitada a ese instrumento.
+- **Accesos del equipo y la dirección**: un enlace fijo por instrumento. Cada persona elige su nombre y
+  escribe su código personal (8 caracteres, guardado como hash PBKDF2). La sesión queda limitada a ese
+  instrumento y dura toda la vigencia del acceso; los formularios se guardan solos en el servidor.
 
 ## Análisis
 
@@ -129,9 +130,11 @@ Para cerrar todas las sesiones: `... --command "DELETE FROM sessions"`.
 
 ## Operación
 
-1. **Enlaces, metas e invitaciones** (`/admin/enlaces`): estado de cada instrumento (En prueba → Abierto →
-   Cerrado), metas (encuesta 300 por defecto; entrevista y observación sin definir), enlace de la encuesta
-   con canal (`?canal=qr-mesa`) y QR, y creación/revocación de invitaciones (el enlace se muestra una sola vez).
+1. **Enlaces y accesos** (`/admin/enlaces`): los tres enlaces fijos con QR (y variantes de la encuesta por
+   canal, `?canal=qr-mesa`); **personas con acceso** — «Dar acceso» con nombre, formulario y vigencia genera
+   un código que se muestra una sola vez junto con un mensaje listo para enviar; «Nuevo código» si se pierde,
+   «+90 días» para extender y «Revocar» para cerrar el acceso; estado de cada instrumento
+   (En prueba → Abierto → Cerrado) y metas (encuesta 300 por defecto; entrevista y observación sin definir).
 2. **En prueba** marca los registros como prueba: no cuentan como válidos. Úselo para el pilotaje
    (filtro «Registro de prueba» para analizarlos).
 3. **Exclusiones** desde el detalle de cada registro, con motivo; los datos originales se conservan.
@@ -154,7 +157,8 @@ las celdas que empiezan con `= + - @` se neutralizan. No suba exportaciones al r
 ## Seguridad
 
 Cookie `__Host-sesion` (`HttpOnly`, `Secure`, `SameSite=Lax`), sesiones en D1 con vencimiento (admin 8 h;
-invitación ≤ 7 días y nunca más allá de su vencimiento), cierre de sesión, revocación inmediata.
+equipo y dirección: hasta el vencimiento de su acceso), cierre de sesión, revocación inmediata. Ingreso por
+código con límite por conexión (20/15 min) y por persona (10/15 min).
 Autorización en servidor en cada página, lectura, descarga y escritura. Verificación de Origin en
 endpoints con cookie (las Server Actions la hacen en Next). Límite de intentos en D1: login 5/15 min,
 invitaciones 20/15 min, inicio de encuesta 120/h por IP (hash). CSP, `Referrer-Policy: no-referrer`,

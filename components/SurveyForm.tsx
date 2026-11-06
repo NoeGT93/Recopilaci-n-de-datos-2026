@@ -1,20 +1,83 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SCALE, SURVEY } from "@/lib/instruments";
 import Turnstile from "./Turnstile";
 import { Button, Notice, PersonalFields, postJson, randomKey, store, uuid, type PersonalValues } from "./ui";
 
 type Answers = Record<string, string | null>;
-type Step = "intro" | "consent" | "filters" | "personal" | 0 | 1 | 2 | "review" | "done" | "ineligible";
+// Paso numérico = índice de la afirmación (0–14), una por pantalla.
+type Step = "intro" | "consent" | "filters" | "personal" | number | "review" | "done" | "ineligible";
 // Lo que se guarda en este dispositivo: id opaco, clave del borrador y respuestas. Nunca datos personales.
 type Saved = { id: string; key: string; step: Step; answers: Answers; started: boolean };
 
 const KEY = "encuesta-clientes-v" + SURVEY.version;
-const PAGES = [SURVEY.items.slice(0, 5), SURVEY.items.slice(5, 10), SURVEY.items.slice(10, 15)];
+const N = SURVEY.items.length;
+const PART = 5;
+const SECONDS_PER_ITEM = 12;
 const YESNO = [
   { v: true, l: "Sí" },
   { v: false, l: "No" },
 ];
+
+/** Mensaje de avance según el porcentaje: corto, sin presión. */
+function mood(pct: number) {
+  if (pct === 0) return "Recién servido";
+  if (pct < 34) return "Buen ritmo";
+  if (pct < 50) return "Un tercio de la taza";
+  if (pct < 80) return "¡Más de la mitad!";
+  if (pct < 100) return "Casi terminamos";
+  return "¡Taza llena!";
+}
+
+/** Indicador de avance: una taza que se llena. Decorativa; el texto da la misma información. */
+function Cup({ pct }: { pct: number }) {
+  const body = "M12 18h32l-3.6 30.5a5 5 0 0 1-5 4.5H20.6a5 5 0 0 1-5-4.5z";
+  return (
+    <div className="cup" aria-hidden>
+      <svg viewBox="0 0 64 64">
+        <defs>
+          <clipPath id="cup-clip">
+            <path d={body} />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#cup-clip)">
+          <rect x="8" y="18" width="40" height="36" fill="var(--accent-soft)" />
+          <rect className="fill" x="8" y="18" width="40" height="36" fill="var(--accent)" style={{ transform: `scaleY(${pct / 100})`, transformBox: "fill-box" }} />
+        </g>
+        <path d={body} fill="none" stroke="var(--text)" strokeWidth="2.4" strokeLinejoin="round" />
+        <path d="M43.4 24h3.4a6.5 6.5 0 0 1 0 13h-4.9" fill="none" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
+        <path d="M9 58.5h38" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
+        {pct === 100 && <path d="M22 12c-2-2.5 2-4 0-7M30 12c-2-2.5 2-4 0-7M38 12c-2-2.5 2-4 0-7" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />}
+      </svg>
+    </div>
+  );
+}
+
+function Progress({ index }: { index: number }) {
+  const pct = Math.round((index / N) * 100);
+  const minutes = Math.max(1, Math.ceil(((N - index) * SECONDS_PER_ITEM) / 60));
+  return (
+    <div className="survey-top">
+      <Cup pct={pct} />
+      <div className="meta">
+        <div className="count">
+          {index < N ? `Afirmación ${index + 1} de ${N}` : `${N} de ${N}`} · {pct} %
+        </div>
+        <p className="mood" aria-live="polite">
+          {mood(pct)}
+          {index < N && <span className="muted" style={{ fontWeight: 500 }}> · ≈ {minutes} min</span>}
+        </p>
+        <div className="parts" aria-hidden>
+          {[0, 1, 2].map((p) => (
+            <span key={p}>
+              <i style={{ transform: `scaleX(${Math.min(1, Math.max(0, (index - p * PART) / PART))})` }} />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string; channel: string; mode: "prueba" | "abierto" }) {
   const [s, setS] = useState<Saved | null>(null);
@@ -28,7 +91,10 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
   const [error, setError] = useState<string | null>(null);
   const [saveWarn, setSaveWarn] = useState(false);
   const [resumable, setResumable] = useState<Saved | null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLElement>(null);
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef<Saved | null>(null);
+  latest.current = s;
 
   // Recuperar borrador de este dispositivo.
   useEffect(() => {
@@ -44,14 +110,59 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
     }
   }, [s]);
 
+  const go = useCallback((step: Step) => {
+    if (advance.current) clearTimeout(advance.current);
+    setError(null);
+    setS((cur) => (cur ? { ...cur, step } : cur));
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0 });
+      heading.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  const saveDraft = useCallback(async () => {
+    const cur = latest.current;
+    if (!cur?.started) return;
+    const r = await postJson("/api/encuesta", { action: "save", id: cur.id, key: cur.key, answers: cur.answers });
+    setSaveWarn(!r.ok);
+  }, []);
+
+  /** Elegir una opción avanza sola a la siguiente afirmación; se guarda en el servidor al cerrar cada bloque de 5. */
+  const choose = useCallback(
+    (index: number, value: string) => {
+      setS((cur) => (cur ? { ...cur, answers: { ...cur.answers, [SURVEY.items[index].id]: value } } : cur));
+      if (advance.current) clearTimeout(advance.current);
+      advance.current = setTimeout(() => {
+        if ((index + 1) % PART === 0) saveDraft();
+        go(index + 1 < N ? index + 1 : "review");
+      }, 260);
+    },
+    [go, saveDraft],
+  );
+
+  // Teclado en computadora: 1–4 eligen, ← vuelve, → pasa a la siguiente.
+  const stepNow = s?.step;
+  useEffect(() => {
+    if (typeof stepNow !== "number") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= SCALE.length) choose(stepNow, SCALE[n - 1].value);
+      else if (e.key === "ArrowLeft" && stepNow > 0) go(stepNow - 1);
+      else if (e.key === "ArrowRight") go(stepNow + 1 < N ? stepNow + 1 : "review");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stepNow, choose, go]);
+
   if (!s && !resumable) return null;
 
   if (resumable && !s) {
     const answered = Object.values(resumable.answers).filter(Boolean).length;
     return (
-      <section className="step stack" aria-labelledby="resume-h">
-        <h2 id="resume-h">Tiene una encuesta sin terminar</h2>
-        <p>En este dispositivo hay {answered} de 15 afirmaciones respondidas.</p>
+      <section className="card step stack" aria-labelledby="resume-h">
+        <h2 id="resume-h" style={{ marginTop: 0 }}>Tiene una encuesta sin terminar</h2>
+        <p className="muted">En este dispositivo hay {answered} de {N} afirmaciones respondidas. Puede seguir donde quedó.</p>
         <div className="row">
           <Button
             busy={busy}
@@ -90,27 +201,12 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
   }
 
   const st = s!;
-  const go = (step: Step) => {
-    setError(null);
-    setS({ ...st, step });
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0 });
-      heading.current?.focus();
-    });
-  };
-  const setAnswer = (id: string, v: string | null) => setS({ ...st, answers: { ...st.answers, [id]: v } });
-
-  async function saveDraft(next: Step) {
-    go(next);
-    const r = await postJson("/api/encuesta", { action: "save", id: st.id, key: st.key, answers: st.answers });
-    setSaveWarn(!r.ok);
-  }
 
   async function start() {
-    if (!token) return setError("Espere la verificación de seguridad o márquela para continuar.");
+    if (!token) return setError("Espere un momento a la verificación de seguridad y vuelva a intentarlo.");
     setBusy(true);
     setError(null);
-    const r = await postJson<{ status?: string; turnstile?: boolean }>("/api/encuesta", {
+    const r = await postJson<{ status?: string }>("/api/encuesta", {
       action: "start", id: st.id, key: st.key, consent, adult, consumed, channel, turnstile: token,
     });
     setBusy(false);
@@ -139,35 +235,49 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
   }
 
   const answeredCount = SURVEY.items.filter((i) => st.answers[i.id]).length;
-  const stepIndex = typeof st.step === "number" ? st.step : null;
+  const idx = typeof st.step === "number" ? st.step : null;
+  const hRef = heading as React.RefObject<HTMLHeadingElement>;
 
   return (
     <div>
       {mode === "prueba" && (
-        <Notice kind="accent">
-          <strong>Modo de prueba.</strong> Las respuestas se registran como prueba y no se cuentan en los resultados.
-        </Notice>
+        <div style={{ marginBottom: "1rem" }}>
+          <Notice kind="accent">
+            <strong>Modo de prueba.</strong> Las respuestas se registran como prueba y no se cuentan en los resultados.
+          </Notice>
+        </div>
       )}
 
       {st.step === "intro" && (
-        <section className="step stack">
-          <h2 ref={heading} tabIndex={-1}>{SURVEY.title}</h2>
-          <p>{SURVEY.objective}</p>
-          <p className="small muted">Son 15 afirmaciones; toma alrededor de 5 minutos. Puede dejar sin responder las que prefiera.</p>
-          <Button onClick={() => go("consent")}>Comenzar</Button>
+        <section className="card step">
+          <div className="hero-icon" aria-hidden>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 8h1a4 4 0 1 1 0 8h-1" /><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" /><path d="M6 2v2M10 2v2M14 2v2" />
+            </svg>
+          </div>
+          <h1 ref={hRef} tabIndex={-1} style={{ fontSize: "1.6rem" }}>¿Qué opina de Coffee Bike?</h1>
+          <p className="muted">{SURVEY.objective}</p>
+          <div className="facts">
+            <span className="tag accent">15 afirmaciones</span>
+            <span className="tag">≈ 3 minutos</span>
+            <span className="tag">Voluntaria y confidencial</span>
+            <span className="tag">Puede omitir cualquiera</span>
+          </div>
+          <Button className="btn block" onClick={() => go("consent")}>Comenzar</Button>
         </section>
       )}
 
       {(st.step === "consent" || st.step === "filters") && (
-        <section className="step stack">
+        <section className="card step">
           {st.step === "consent" ? (
             <>
-              <h2 ref={heading} tabIndex={-1}>Consentimiento informado</h2>
-              <p>
+              <p className="eyebrow">Paso 1 de 2 · Antes de empezar</p>
+              <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Consentimiento informado</h2>
+              <p className="muted">
                 Esta encuesta forma parte de una investigación académica de la Maestría en Marketing Estratégico y Alta Gerencia
                 (CUNOC, Universidad de San Carlos de Guatemala) sobre la imagen corporativa y el reconocimiento de Coffee Bike.
               </p>
-              <ul>
+              <ul className="muted" style={{ paddingLeft: "1.2rem" }}>
                 <li>Su participación es voluntaria; puede dejar de responder en cualquier momento.</li>
                 <li>Las respuestas se analizan de forma agregada y confidencial, solo con fines académicos.</li>
                 <li>Los datos de identificación son opcionales y se guardan separados de sus respuestas.</li>
@@ -186,7 +296,8 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
             </>
           ) : (
             <>
-              <h2 ref={heading} tabIndex={-1}>Antes de empezar</h2>
+              <p className="eyebrow">Paso 2 de 2 · Antes de empezar</p>
+              <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Dos preguntas rápidas</h2>
               {[
                 { q: "¿Tiene 18 años o más?", v: adult, set: setAdult, name: "adult" },
                 { q: "¿Ha consumido productos de Coffee Bike?", v: consumed, set: setConsumed, name: "consumed" },
@@ -205,128 +316,114 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
               ))}
             </>
           )}
-          <p className="small muted">
-            El consentimiento y estas preguntas de elegibilidad son ajustes de la aplicación, pendientes de revisión académica.
-          </p>
+          <p className="small muted">El consentimiento y estas preguntas de elegibilidad son ajustes de la aplicación, pendientes de revisión académica.</p>
           <Turnstile siteKey={siteKey} onToken={setToken} resetKey={tsReset} />
           {error && <Notice kind="error">{error}</Notice>}
           <div className="actions">
-            <button className="btn secondary" onClick={() => go(st.step === "consent" ? "intro" : "consent")}>Atrás</button>
+            <button className="btn ghost" onClick={() => go(st.step === "consent" ? "intro" : "consent")}>Atrás</button>
             {st.step === "consent" ? (
-              <Button disabled={consent === null} busy={busy} onClick={() => (consent ? go("filters") : start())}>
-                Continuar
-              </Button>
+              <Button disabled={consent === null} busy={busy} onClick={() => (consent ? go("filters") : start())}>Continuar</Button>
             ) : (
-              <Button disabled={adult === null || consumed === null} busy={busy} onClick={start}>
-                Continuar
-              </Button>
+              <Button disabled={adult === null || consumed === null} busy={busy} onClick={start}>Continuar</Button>
             )}
           </div>
         </section>
       )}
 
       {st.step === "personal" && (
-        <section className="step stack">
-          <h2 ref={heading} tabIndex={-1}>Datos de identificación</h2>
+        <section className="card step">
+          <p className="eyebrow">Opcional</p>
+          <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Datos de identificación</h2>
           <PersonalFields
             value={personal}
             onChange={setPersonal}
             purpose="Finalidad: describir el perfil de quienes participan. Puede dejarlos en blanco. Se envían solo al final, se guardan separados de sus respuestas y únicamente el equipo investigador puede consultarlos."
           />
           <div className="actions">
-            <span />
+            <button className="btn ghost" onClick={() => go(0)}>Omitir</button>
             <Button onClick={() => go(0)}>Ir a las afirmaciones</Button>
           </div>
         </section>
       )}
 
-      {stepIndex !== null && (
-        <section className="step">
-          <h2 ref={heading} tabIndex={-1}>
-            Afirmaciones {stepIndex * 5 + 1} a {stepIndex * 5 + 5}
-          </h2>
-          <p className="small muted">Marque una sola opción por afirmación. Puede omitir las que prefiera.</p>
-          <div className="progressbar" aria-hidden>
-            <span style={{ transform: `scaleX(${(stepIndex + 1) / 3})` }} />
-          </div>
-          {PAGES[stepIndex].map((it) => (
-            <fieldset className="item" key={it.id}>
-              <legend>
-                <span className="num">{it.n}.</span>
-                {it.text}
-              </legend>
-              <div className="options">
-                {SCALE.map((o) => (
-                  <label className="opt" key={o.value}>
-                    <input type="radio" name={it.id} value={o.value} checked={st.answers[it.id] === o.value} onChange={() => setAnswer(it.id, o.value)} />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-              {st.answers[it.id] && (
-                <button className="linkbtn" onClick={() => setAnswer(it.id, null)}>
-                  Quitar selección (dejar sin respuesta)
-                </button>
-              )}
-            </fieldset>
-          ))}
-          {saveWarn && <Notice>No se pudo guardar en el servidor; sus respuestas siguen guardadas en este dispositivo.</Notice>}
-          <div className="actions">
-            <button className="btn secondary" onClick={() => saveDraft(stepIndex === 0 ? "personal" : ((stepIndex - 1) as Step))}>
-              Atrás
+      {idx !== null && (
+        <section className="card">
+          <Progress index={idx} />
+          <fieldset className="question" key={idx}>
+            <legend className="statement" ref={heading as React.RefObject<HTMLLegendElement>} tabIndex={-1}>
+              <span className="statement-num">Afirmación {idx + 1}</span>
+              <br />
+              {SURVEY.items[idx].text}
+            </legend>
+            <div className="scale">
+              {SCALE.map((o, k) => (
+                <label className="opt" key={o.value}>
+                  <input
+                    type="radio"
+                    name={SURVEY.items[idx].id}
+                    value={o.value}
+                    checked={st.answers[SURVEY.items[idx].id] === o.value}
+                    onChange={() => choose(idx, o.value)}
+                  />
+                  {o.label}
+                  <span className="key" aria-hidden>{k + 1}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {saveWarn && <p className="small muted" style={{ marginTop: "0.75rem" }}>Sin conexión con el servidor: sus respuestas siguen guardadas en este dispositivo.</p>}
+          <div className="qnav">
+            <button className="btn ghost" onClick={() => go(idx === 0 ? "personal" : idx - 1)}>← Atrás</button>
+            <button className="btn secondary" onClick={() => go(idx + 1 < N ? idx + 1 : "review")}>
+              {st.answers[SURVEY.items[idx].id] ? "Siguiente →" : "Prefiero no responder →"}
             </button>
-            <Button onClick={() => saveDraft(stepIndex === 2 ? "review" : ((stepIndex + 1) as Step))}>
-              {stepIndex === 2 ? "Revisar respuestas" : "Siguiente"}
-            </Button>
           </div>
         </section>
       )}
 
       {st.step === "review" && (
-        <section className="step">
-          <h2 ref={heading} tabIndex={-1}>Revise sus respuestas</h2>
-          <p>
-            Respondió {answeredCount} de 15 afirmaciones.
-            {answeredCount < 15 && " Las que quedaron sin respuesta se registran como «sin respuesta»; puede volver a ellas si lo desea."}
+        <section className="card step">
+          <Progress index={N} />
+          <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Revise y envíe</h2>
+          <p className="muted">
+            Respondió {answeredCount} de {N} afirmaciones.
+            {answeredCount < N && " Las que quedaron sin respuesta se registran así; puede tocar «Cambiar» en cualquiera."}
           </p>
-          <div className="table-wrap">
-            <table>
-              <tbody>
-                {SURVEY.items.map((it) => (
-                  <tr key={it.id}>
-                    <td className="num">{it.n}</td>
-                    <td>{it.text}</td>
-                    <td>
-                      {SCALE.find((o) => o.value === st.answers[it.id])?.label ?? <span className="muted">Sin respuesta</span>}{" "}
-                      <button className="linkbtn" onClick={() => go(Math.floor((it.n - 1) / 5) as Step)}>
-                        Cambiar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {error && <Notice kind="error">{error}</Notice>}
+          <ul className="review-list">
+            {SURVEY.items.map((it, i) => {
+              const label = SCALE.find((o) => o.value === st.answers[it.id])?.label;
+              return (
+                <li key={it.id}>
+                  <span className="n">{it.n}</span>
+                  <span className="t">{it.text}</span>
+                  <span className="a">
+                    {label ? <strong>{label}</strong> : <span className="muted">Sin respuesta</span>}
+                    <button className="linkbtn" onClick={() => go(i)}>Cambiar</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {error && <div style={{ marginTop: "1rem" }}><Notice kind="error">{error}</Notice></div>}
           <div className="actions">
-            <button className="btn secondary" onClick={() => go(2)}>Atrás</button>
+            <button className="btn ghost" onClick={() => go(N - 1)}>← Atrás</button>
             <Button busy={busy} onClick={submit}>{error ? "Reintentar envío" : "Enviar respuestas"}</Button>
           </div>
         </section>
       )}
 
       {st.step === "done" && (
-        <section className="step stack">
-          <h2 ref={heading} tabIndex={-1}>Respuesta recibida</h2>
-          <Notice kind="ok">Sus respuestas quedaron registradas. Gracias por participar.</Notice>
-          <p className="small muted">Puede cerrar esta página.</p>
+        <section className="card step" style={{ textAlign: "center" }}>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: "0.5rem" }}><Cup pct={100} /></div>
+          <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Respuesta recibida</h2>
+          <p className="muted" style={{ margin: 0 }}>Sus respuestas quedaron registradas. ¡Gracias por su tiempo! Ya puede cerrar esta página.</p>
         </section>
       )}
 
       {st.step === "ineligible" && (
-        <section className="step stack">
-          <h2 ref={heading} tabIndex={-1}>Gracias por su tiempo</h2>
-          <p>
+        <section className="card step">
+          <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Gracias por su tiempo</h2>
+          <p className="muted" style={{ margin: 0 }}>
             Esta encuesta está dirigida a personas mayores de edad que han consumido productos de Coffee Bike y que aceptan
             participar. No es necesario que continúe.
           </p>

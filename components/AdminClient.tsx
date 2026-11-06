@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import QRCode from "qrcode";
-import { login, createInvitation, revealPersonal, changePassword } from "@/app/admin/actions";
+import { login, createInvitation, newCode, revealPersonal, changePassword } from "@/app/admin/actions";
 import { PERSONAL_FIELDS } from "@/lib/instruments";
 import { Button, Notice } from "./ui";
 
@@ -11,7 +11,7 @@ const LINKS = [
   ["/admin/encuesta", "Encuesta"],
   ["/admin/entrevista", "Entrevista"],
   ["/admin/observacion", "Observación"],
-  ["/admin/enlaces", "Enlaces, metas e invitaciones"],
+  ["/admin/enlaces", "Enlaces y accesos"],
   ["/admin/contrasena", "Contraseña"],
 ];
 
@@ -92,37 +92,82 @@ export function ChannelLink({ base }: { base: string }) {
   );
 }
 
-export function InvitationForm() {
+/** Muestra un código recién generado (solo esta vez) con botón para copiar un mensaje listo para enviar. */
+function CodeCard({ name, code, link }: { name: string; code: string; link: string }) {
+  const [copied, setCopied] = useState(false);
+  const message = `Hola ${name}: ingrese a ${link} , elija su nombre y escriba el código ${code}. Sus avances se guardan solos.`;
+  return (
+    <Notice kind="ok">
+      <p><strong>Código de {name}</strong> — cópielo ahora; por seguridad no se vuelve a mostrar.</p>
+      <div className="row" style={{ margin: "0.6rem 0" }}>
+        <span className="code-show">{code}</span>
+        <button
+          type="button"
+          className="btn secondary small"
+          onClick={async () => {
+            await navigator.clipboard.writeText(message).catch(() => {});
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? "Mensaje copiado" : "Copiar mensaje para enviar"}
+        </button>
+      </div>
+      <p className="small" style={{ margin: 0 }}>{message}</p>
+    </Notice>
+  );
+}
+
+export function InvitationForm({ links }: { links: Record<"entrevista" | "observacion", string> }) {
   const [state, action, pending] = useActionState(createInvitation, {});
+  const [instrument, setInstrument] = useState<"entrevista" | "observacion">("observacion");
   return (
     <form action={action} className="stack">
       <div className="filters">
         <div className="field">
-          <label htmlFor="inv-i">Instrumento</label>
-          <select id="inv-i" name="instrument">
+          <label htmlFor="inv-i">Formulario</label>
+          <select id="inv-i" name="instrument" value={instrument} onChange={(e) => setInstrument(e.target.value as "entrevista" | "observacion")}>
+            <option value="observacion">Ficha de observación (equipo)</option>
             <option value="entrevista">Entrevista a la dirección</option>
-            <option value="observacion">Ficha de observación</option>
           </select>
         </div>
         <div className="field">
-          <label htmlFor="inv-l">Etiqueta</label>
-          <input id="inv-l" name="label" type="text" maxLength={60} placeholder="Observador 1" required />
+          <label htmlFor="inv-l">Nombre que verá en la lista</label>
+          <input id="inv-l" name="label" type="text" maxLength={60} placeholder="Ej.: Julia" required />
         </div>
         <div className="field">
           <label htmlFor="inv-d">Vigencia (días)</label>
-          <input id="inv-d" name="days" type="number" min={1} max={90} defaultValue={14} required />
+          <input id="inv-d" name="days" type="number" min={1} max={365} defaultValue={90} required />
         </div>
-        <Button busy={pending} type="submit">Crear invitación</Button>
+        <Button busy={pending} type="submit">Dar acceso</Button>
       </div>
-      <p className="small muted">Use etiquetas sin datos personales: la etiqueta de observación se registra como «observador» en las fichas.</p>
       {state?.error && <Notice kind="error">{state.error}</Notice>}
-      {state?.link && (
-        <Notice kind="ok">
-          <p><strong>Invitación creada.</strong> Copie el enlace ahora: por seguridad no se vuelve a mostrar.</p>
-          <CopyLink url={state.link} label="Enlace de invitación" />
-        </Notice>
-      )}
+      {state?.code && <CodeCard name={state.name!} code={state.code} link={links[instrument]} />}
     </form>
+  );
+}
+
+export function NewCodeButton({ id, link }: { id: string; link: string }) {
+  const [res, setRes] = useState<{ code?: string; name?: string; error?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (res?.code) return <CodeCard name={res.name!} code={res.code} link={link} />;
+  return (
+    <>
+      <button
+        type="button"
+        className="btn secondary small"
+        disabled={busy}
+        onClick={async () => {
+          if (!confirm("El código anterior dejará de funcionar y se cerrará su sesión. ¿Continuar?")) return;
+          setBusy(true);
+          setRes(await newCode(id));
+          setBusy(false);
+        }}
+      >
+        Nuevo código
+      </button>
+      {res?.error && <span className="small" style={{ color: "var(--danger)" }}>{res.error}</span>}
+    </>
   );
 }
 

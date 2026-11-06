@@ -2,13 +2,12 @@
 // Acciones del admin. Next valida el Origin de cada Server Action (CSRF); aquí se exige además la
 // sesión de admin en cada una.
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CURRENT_VERSION, type InstrumentCode } from "@/lib/instruments";
 import { analyze, applyFilters, describeFilters, parseFilters } from "@/lib/analysis";
 import { METHOD_VERSION } from "@/lib/stats";
 import {
-  db, env, now, sha256, randomToken, rateLimit, clientKey, verifyPassword, createSession, destroySession,
+  db, env, now, rateLimit, clientKey, verifyPassword, createSession, destroySession, generateCode, normalizeCode,
   hashPassword, adminPasswordHash, closeOtherAdminSessions,
   requireRole, audit, loadRecords,
 } from "@/lib/server";
@@ -71,25 +70,59 @@ export async function updateInstrument(form: FormData) {
   revalidatePath("/admin", "layout");
 }
 
-export async function createInvitation(_: unknown, form: FormData): Promise<{ link?: string; error?: string }> {
+type CodeResult = { code?: string; name?: string; error?: string };
+
+/** Da acceso a una persona: aparecerá en la lista de nombres del enlace de su instrumento. */
+export async function createInvitation(_: unknown, form: FormData): Promise<CodeResult> {
   await admin();
   const instrument = String(form.get("instrument"));
   if (instrument !== "entrevista" && instrument !== "observacion") return { error: "Instrumento inválido." };
-  const label = str(form.get("label"), 60, "Etiqueta");
-  if (!label) return { error: "Escriba una etiqueta (por ejemplo, «Dirección» u «Observador 1»)." };
+  const name = str(form.get("label"), 60, "Nombre");
+  if (!name) return { error: "Escriba el nombre que la persona verá en la lista." };
   const days = Number(form.get("days"));
-  if (!Number.isInteger(days) || days < 1 || days > 90) return { error: "La vigencia debe ser de 1 a 90 días." };
-  const token = randomToken(24);
+  if (!Number.isInteger(days) || days < 1 || days > 365) return { error: "La vigencia debe ser de 1 a 365 días." };
+  const dup = await db()
+    .prepare("SELECT 1 FROM invitations WHERE instrument = ? AND label = ? AND revoked_at IS NULL AND expires_at > ?")
+    .bind(instrument, name, now())
+    .first();
+  if (dup) return { error: "Ya existe un acceso vigente con ese nombre en este instrumento. Use «Nuevo código» en la lista." };
+  const accessCode = generateCode();
   const id = crypto.randomUUID();
   await db()
     .prepare("INSERT INTO invitations (id, instrument, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(id, instrument, label, await sha256(token), now(), new Date(Date.now() + days * 86400_000).toISOString())
+    .bind(id, instrument, name, await hashPassword(normalizeCode(accessCode)), now(), new Date(Date.now() + days * 86400_000).toISOString())
     .run();
-  await audit("admin", "crear_invitacion", id, { instrument, days });
+  await audit("admin", "crear_acceso", id, { instrument, days });
   revalidatePath("/admin/enlaces");
-  const path = instrument === "entrevista" ? "/entrevista/direccion" : "/observacion";
-  // El código va en el fragmento (#): no se envía al servidor ni queda en registros. Solo se muestra una vez.
-  return { link: `${(await headers()).get("origin")}${path}#acceso=${token}` };
+  // El código solo se muestra ahora; en D1 queda su hash.
+  return { code: accessCode, name };
+}
+
+/** Genera un código nuevo (el anterior deja de servir y se cierran sus sesiones). */
+export async function newCode(id: string): Promise<CodeResult> {
+  await admin();
+  const inv = await db().prepare("SELECT label FROM invitations WHERE id = ? AND revoked_at IS NULL").bind(id).first<{ label: string }>();
+  if (!inv) return { error: "Acceso no encontrado o revocado." };
+  const accessCode = generateCode();
+  await db().batch([
+    db().prepare("UPDATE invitations SET token_hash = ? WHERE id = ?").bind(await hashPassword(normalizeCode(accessCode)), id),
+    db().prepare("DELETE FROM sessions WHERE invitation_id = ?").bind(id),
+  ]);
+  await audit("admin", "nuevo_codigo", id);
+  return { code: accessCode, name: inv.label };
+}
+
+/** Extiende la vigencia (y por tanto la sesión) de un acceso. */
+export async function extendInvitation(form: FormData) {
+  await admin();
+  const id = String(form.get("id"));
+  const until = new Date(Date.now() + 90 * 86400_000).toISOString();
+  await db().batch([
+    db().prepare("UPDATE invitations SET expires_at = ? WHERE id = ? AND revoked_at IS NULL").bind(until, id),
+    db().prepare("UPDATE sessions SET expires_at = ? WHERE invitation_id = ?").bind(until, id),
+  ]);
+  await audit("admin", "extender_acceso", id);
+  revalidatePath("/admin/enlaces");
 }
 
 export async function revokeInvitation(form: FormData) {
@@ -99,7 +132,7 @@ export async function revokeInvitation(form: FormData) {
     db().prepare("UPDATE invitations SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").bind(now(), id),
     db().prepare("DELETE FROM sessions WHERE invitation_id = ?").bind(id),
   ]);
-  await audit("admin", "revocar_invitacion", id);
+  await audit("admin", "revocar_acceso", id);
   revalidatePath("/admin/enlaces");
 }
 

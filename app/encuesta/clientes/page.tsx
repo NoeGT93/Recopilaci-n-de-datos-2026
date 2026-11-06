@@ -10,12 +10,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const channel = parseChannel((await searchParams).canal);
   return (
     <main className="page">
-      <header className="masthead">
-        <p className="org">CUNOC · USAC · Maestría en Marketing Estratégico y Alta Gerencia</p>
-        <h1>Encuesta a clientes</h1>
-      </header>
       {!inst || inst.state === "cerrado" ? (
-        <p>La encuesta no está recibiendo respuestas en este momento. Gracias por su interés.</p>
+        <div className="card">
+          <h1 style={{ fontSize: "1.4rem" }}>Encuesta cerrada</h1>
+          <p className="muted" style={{ margin: 0 }}>La encuesta no está recibiendo respuestas en este momento. Gracias por su interés.</p>
+        </div>
       ) : (
         <SurveyForm siteKey={env().TURNSTILE_SITE_KEY} channel={channel} mode={inst.state} />
       )}

@@ -1,69 +1,116 @@
 "use client";
-// Entrevista a la dirección y ficha de observación (acceso por invitación).
+// Entrevista a la dirección y ficha de observación: acceso eligiendo el nombre y escribiendo el código.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { INTERVIEW, OBSERVATION, OBS_OPTIONS, type Question } from "@/lib/instruments";
-import { Button, Notice, PersonalFields, getJson, postJson, uuid, type PersonalValues } from "./ui";
+import { Button, Notice, PersonalFields, getJson, postJson, store, uuid, type PersonalValues } from "./ui";
 
-// ---------- Acceso por invitación ----------
+// ---------- Acceso ----------
 
-/** El enlace de invitación trae el código en el fragmento (#acceso=…): no viaja al servidor ni a registros. */
-export function AccessGate({ instrument }: { instrument: "entrevista" | "observacion" }) {
+const initials = (name: string) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
+export function AccessGate({ instrument, people }: { instrument: "entrevista" | "observacion"; people: { id: string; label: string }[] }) {
+  const remembered = `acceso-${instrument}`;
+  const [person, setPerson] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
 
-  const enter = useCallback(
-    async (token: string) => {
-      setBusy(true);
-      setError(null);
-      const r = await postJson<{ instrument?: string }>("/api/acceso", { token });
-      setBusy(false);
-      // Recarga completa sin el fragmento: el código no queda en la barra ni en el historial.
-      if (r.ok && r.data.instrument === instrument) return location.replace(location.pathname);
-      history.replaceState(history.state, "", location.pathname);
-      setError(r.ok ? "Esta invitación corresponde a otro instrumento." : r.data.error ?? "No se pudo validar la invitación.");
-    },
-    [instrument],
-  );
-
+  // Recordar en este dispositivo quién fue la última persona (solo el id de su acceso, nunca el código).
   useEffect(() => {
-    const t = new URLSearchParams(location.hash.slice(1)).get("acceso");
-    if (t) enter(t);
-  }, [enter]);
+    const last = store.get<string>(remembered);
+    if (last && people.some((p) => p.id === last)) setPerson(last);
+  }, [people, remembered]);
+
+  async function enter(e: React.FormEvent) {
+    e.preventDefault();
+    if (!person || !code.trim()) return;
+    setBusy(true);
+    setError(null);
+    const r = await postJson<{ instrument?: string }>("/api/acceso", { id: person, code });
+    setBusy(false);
+    if (r.ok && r.data.instrument === instrument) {
+      store.set(remembered, person);
+      return location.reload();
+    }
+    setError(r.data.error ?? "No se pudo ingresar.");
+  }
 
   return (
-    <section className="stack">
-      <h2>Acceso restringido</h2>
-      <p>Este formulario requiere una invitación vigente. Abra el enlace que recibió o escriba el código de acceso.</p>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (code.trim()) enter(code.trim());
-        }}
-      >
-        <div className="field">
-          <label htmlFor="code">Código de acceso</label>
-          <input id="code" type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
-        </div>
-        {error && <Notice kind="error">{error}</Notice>}
-        <Button busy={busy} type="submit">Ingresar</Button>
-      </form>
-    </section>
+    <form className="card step" onSubmit={enter}>
+      <p className="eyebrow">Acceso del equipo</p>
+      <h1 style={{ fontSize: "1.5rem" }}>{instrument === "entrevista" ? "Entrevista a la dirección" : "Ficha de observación virtual"}</h1>
+      <p className="muted">
+        Elija su nombre y escriba el código que le entregó el equipo investigador. La sesión queda abierta en este dispositivo y sus
+        avances se guardan solos.
+      </p>
+      {people.length === 0 ? (
+        <Notice>Aún no hay personas con acceso a este formulario. Pida al equipo investigador que le habilite.</Notice>
+      ) : (
+        <>
+          <fieldset style={{ marginTop: "1.25rem" }}>
+            <legend>¿Quién es usted?</legend>
+            <div className="people">
+              {people.map((p) => (
+                <label className="opt person" key={p.id}>
+                  <input
+                    type="radio"
+                    name="person"
+                    checked={person === p.id}
+                    onChange={() => {
+                      setPerson(p.id);
+                      setError(null);
+                      requestAnimationFrame(() => codeRef.current?.focus());
+                    }}
+                  />
+                  <span className="avatar" aria-hidden>{initials(p.label)}</span>
+                  {p.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="field" style={{ marginTop: "1.25rem", maxWidth: "20rem" }}>
+            <label htmlFor="code">Código de acceso</label>
+            <input
+              ref={codeRef}
+              id="code"
+              className="code-input"
+              type="text"
+              autoCapitalize="characters"
+              autoComplete="one-time-code"
+              spellCheck={false}
+              placeholder="XXXX-XXXX"
+              maxLength={20}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          </div>
+          {error && <Notice kind="error">{error}</Notice>}
+          <div className="actions" style={{ justifyContent: "flex-start" }}>
+            <Button busy={busy} type="submit" disabled={!person || !code.trim()}>Ingresar</Button>
+          </div>
+        </>
+      )}
+    </form>
   );
 }
 
-export function LogoutButton() {
+export function LogoutButton({ name }: { name: string }) {
   return (
-    <button
-      className="linkbtn"
-      onClick={async () => {
-        await fetch("/api/acceso", { method: "DELETE" });
-        location.reload();
-      }}
-    >
-      Cerrar sesión
-    </button>
+    <div className="row" style={{ gap: "0.5rem" }}>
+      <span className="avatar" aria-hidden>{initials(name)}</span>
+      <span className="small" style={{ fontWeight: 600 }}>{name}</span>
+      <button
+        className="btn ghost small"
+        onClick={async () => {
+          await fetch("/api/acceso", { method: "DELETE" });
+          location.reload();
+        }}
+      >
+        Salir
+      </button>
+    </div>
   );
 }
 
@@ -239,9 +286,33 @@ function useDraft(initial: Loaded) {
   return { answers, setAnswers: edit(setAnswers), meta, setMeta: edit(setMeta), photos, setPhotos, personal, setPersonal, status, saveState, saveError, busy, error, submit, ensureSaved };
 }
 
-function SaveIndicator({ state, error }: { state: string; error: string | null }) {
-  const text = state === "saving" ? "Guardando…" : state === "saved" ? "Borrador guardado" : state === "error" ? error ?? "No se pudo guardar; los cambios siguen en pantalla y se reintentará." : "";
-  return <p className={`small ${state === "error" ? "" : "muted"}`} role="status" aria-live="polite">{text}</p>;
+function SaveState({ state, error }: { state: string; error: string | null }) {
+  const text =
+    state === "saving" ? "Guardando…" : state === "saved" ? "Guardado automáticamente" : state === "error" ? error ?? "Sin conexión: se reintentará" : "Se guarda solo mientras trabaja";
+  return (
+    <span className={`save-state ${state}`} role="status" aria-live="polite">
+      <span className="dot" aria-hidden />
+      {text}
+    </span>
+  );
+}
+
+/** Barra fija inferior: avance, estado del guardado y envío siempre a mano. */
+function StickyBar({ done, total, unit, d, label }: { done: number; total: number; unit: string; d: ReturnType<typeof useDraft>; label: string }) {
+  return (
+    <div className="sticky-bar">
+      <div className="info">
+        <p>
+          <strong>{done} de {total}</strong> {unit}
+        </p>
+        <SaveState state={d.saveState} error={d.saveError} />
+        <div className="progressbar" aria-hidden>
+          <span style={{ transform: `scaleX(${done / total})` }} />
+        </div>
+      </div>
+      <Button busy={d.busy} onClick={d.submit}>{d.error ? "Reintentar" : label}</Button>
+    </div>
+  );
 }
 
 function NoteFields({ id, sel, set, withDate, disabled }: { id: string; sel: Sel; set: (s: Sel) => void; withDate?: boolean; disabled: boolean }) {
@@ -267,12 +338,34 @@ function NoteFields({ id, sel, set, withDate, disabled }: { id: string; sel: Sel
   );
 }
 
-function Submitted({ status }: { status: string }) {
+function Submitted({ status, onBack }: { status: string; onBack?: () => void }) {
   return (
-    <section className="step stack">
-      <h2>Respuesta recibida</h2>
-      <Notice kind="ok">El registro quedó guardado como {status === "completo" ? "completo" : "incompleto"}. Gracias.</Notice>
+    <section className="card step" style={{ textAlign: "center" }}>
+      <div className="hero-icon" style={{ margin: "0 auto 1rem" }} aria-hidden>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </div>
+      <h2 style={{ marginTop: 0 }}>Respuesta recibida</h2>
+      <p className="muted">El registro quedó guardado como {status === "completo" ? "completo" : "incompleto"}. ¡Gracias!</p>
+      {onBack && <button className="btn secondary" onClick={onBack}>Volver a mis fichas</button>}
     </section>
+  );
+}
+
+/** Encabezado de pregunta dentro de su tarjeta. */
+function QHead({ label, children, badge, hint }: { label: string; children: React.ReactNode; badge?: React.ReactNode; hint?: string }) {
+  return (
+    <legend className="qhead">
+      <span className="qhead-row">
+        <span>
+          <span className="statement-num">{label}</span>
+          <span className="qtext">{children}</span>
+        </span>
+        {badge}
+      </span>
+      {hint && <span className="hint">{hint}</span>}
+    </legend>
   );
 }
 
@@ -312,66 +405,66 @@ export function InterviewForm() {
 function InterviewBody({ initial }: { initial: Loaded }) {
   const d = useDraft(initial);
   if (d.status === "completo" || d.status === "incompleto") return <Submitted status={d.status} />;
-  const done = d.status !== "nuevo" && d.status !== "borrador";
+  const total = INTERVIEW.questions.length;
   const answered = INTERVIEW.questions.filter((q) => d.answers[q.id]?.values?.length).length;
   return (
     <div className="step">
-      <p>{INTERVIEW.objective}</p>
-      <Notice>{INTERVIEW.note}</Notice>
-      <p className="small muted" style={{ marginTop: "1rem" }}>{INTERVIEW.materials}</p>
-      <div className="section">
-        <PersonalFields value={d.personal} onChange={d.setPersonal} purpose="Finalidad: identificar a la persona entrevistada en el registro académico. Son opcionales, se envían solo al final, se guardan separados de las respuestas y solo el equipo investigador puede consultarlos." />
+      <div className="card">
+        <p className="eyebrow">Entrevista estructurada · {total} preguntas</p>
+        <h1 style={{ fontSize: "1.5rem" }}>{INTERVIEW.title}</h1>
+        <p className="muted">{INTERVIEW.objective}</p>
+        <details>
+          <summary>Indicaciones de registro y materiales solicitados</summary>
+          <p className="small">{INTERVIEW.note}</p>
+          <p className="small" style={{ margin: 0 }}>{INTERVIEW.materials}</p>
+        </details>
+      </div>
+      <div className="card">
+        <PersonalFields
+          value={d.personal}
+          onChange={d.setPersonal}
+          purpose="Finalidad: identificar a la persona entrevistada en el registro académico. Son opcionales, se envían solo al final, se guardan separados de las respuestas y solo el equipo investigador puede consultarlos."
+        />
       </div>
       {INTERVIEW.questions.map((q) => {
         const sel = d.answers[q.id] ?? {};
         const set = (s: Sel) => d.setAnswers({ ...d.answers, [q.id]: s });
         const otherSelected = q.options.some((o) => o.other && sel.values?.includes(o.value));
         return (
-          <fieldset className="item" key={q.id}>
-            <legend>
-              <span className="num">{q.n}.</span>
-              {q.text} <span className="hint">({q.type === "single" ? "Selección única" : "Selección múltiple"})</span>
-            </legend>
+          <fieldset className="card" key={q.id}>
+            <QHead
+              label={`Pregunta ${q.n} de ${total}`}
+              badge={sel.values?.length ? <span className="tag ok">Respondida</span> : null}
+              hint={q.type === "single" ? "Elija una opción" : "Marque todas las que correspondan"}
+            >
+              {q.text}
+            </QHead>
             <div className="options">
               {q.options.map((o) => (
                 <label className="opt" key={o.value}>
-                  <input
-                    type={q.type === "single" ? "radio" : "checkbox"}
-                    name={q.id}
-                    checked={!!sel.values?.includes(o.value)}
-                    onChange={() => set(toggle(q, sel, o.value))}
-                    disabled={done}
-                  />
+                  <input type={q.type === "single" ? "radio" : "checkbox"} name={q.id} checked={!!sel.values?.includes(o.value)} onChange={() => set(toggle(q, sel, o.value))} />
                   {o.label}
                 </label>
               ))}
             </div>
             {otherSelected && (
-              <div className="field" style={{ marginTop: "0.6rem" }}>
+              <div className="field" style={{ marginTop: "0.75rem" }}>
                 <label htmlFor={`o-${q.id}`}>Especifique «{q.options.find((o) => o.other)!.label}»</label>
                 <input id={`o-${q.id}`} type="text" maxLength={300} value={sel.other ?? ""} onChange={(e) => set({ ...sel, other: e.target.value })} />
               </div>
             )}
-            {sel.values?.length ? (
-              <button className="linkbtn" onClick={() => set({ ...sel, values: [] })}>Quitar selección</button>
-            ) : null}
+            {sel.values?.length ? <button className="linkbtn" onClick={() => set({ ...sel, values: [] })}>Quitar selección</button> : null}
             <details>
               <summary>Referencias y evidencias (opcional)</summary>
-              <NoteFields id={q.id} sel={sel} set={set} disabled={done} />
-              <Photos item={q.id} photos={d.photos} setPhotos={d.setPhotos} ensureSaved={d.ensureSaved} submissionId={initial.id} disabled={done} />
+              <NoteFields id={q.id} sel={sel} set={set} disabled={false} />
+              <Photos item={q.id} photos={d.photos} setPhotos={d.setPhotos} ensureSaved={d.ensureSaved} submissionId={initial.id} disabled={false} />
             </details>
           </fieldset>
         );
       })}
-      <div className="section stack">
-        <SaveIndicator state={d.saveState} error={d.saveError} />
-        <p>
-          Respondió {answered} de {INTERVIEW.questions.length} preguntas.
-          {answered < INTERVIEW.questions.length && " Puede enviar con preguntas sin responder; el registro quedará como incompleto."}
-        </p>
-        {d.error && <Notice kind="error">{d.error}</Notice>}
-        <Button busy={d.busy} onClick={d.submit}>{d.error ? "Reintentar envío" : "Enviar entrevista"}</Button>
-      </div>
+      {answered < total && <p className="small muted" style={{ marginTop: "1rem" }}>Puede enviar con preguntas sin responder; el registro quedará como incompleto.</p>}
+      {d.error && <div style={{ marginTop: "1rem" }}><Notice kind="error">{d.error}</Notice></div>}
+      <StickyBar done={answered} total={total} unit="respondidas" d={d} label="Enviar entrevista" />
     </div>
   );
 }
@@ -379,6 +472,7 @@ function InterviewBody({ initial }: { initial: Loaded }) {
 // ---------- Observación ----------
 
 type Listed = { id: string; status: string; created_at: string; submitted_at: string | null; meta: Meta | null };
+const LIST_LABEL: Record<string, string> = { borrador: "En progreso", completo: "Enviada", incompleto: "Enviada incompleta" };
 
 export function ObservationApp({ observer }: { observer: string }) {
   const [list, setList] = useState<Listed[] | null>(null);
@@ -388,91 +482,112 @@ export function ObservationApp({ observer }: { observer: string }) {
     getJson("/api/formulario").then((d) => setList(d.items ?? [])).catch(() => setError(true));
   }, []);
   useEffect(refresh, [refresh]);
+  const back = () => {
+    setOpen(null);
+    refresh();
+    window.scrollTo({ top: 0 });
+  };
 
   if (open)
     return (
       <div>
-        <button className="linkbtn" onClick={() => { setOpen(null); refresh(); }}>← Volver a mis fichas</button>
-        <ObservationBody key={open.id} initial={open} observer={observer} />
+        <button className="btn ghost small" style={{ marginBottom: "0.75rem" }} onClick={back}>← Mis fichas</button>
+        <ObservationBody key={open.id} initial={open} observer={observer} onBack={back} />
       </div>
     );
   if (error) return <Notice kind="error">No se pudo cargar. Revise la conexión y recargue la página.</Notice>;
   if (!list) return <p className="muted" role="status">Cargando…</p>;
   return (
-    <section className="stack">
-      <div className="row spread">
-        <h2 style={{ margin: 0 }}>Mis fichas</h2>
-        <Button onClick={() => setOpen({ id: uuid(), status: "nuevo", answers: {}, meta: {}, photos: [] })}>Nueva ficha</Button>
+    <section className="card step">
+      <div className="card-title">
+        <div>
+          <p className="eyebrow">Ficha de observación virtual</p>
+          <h1 style={{ fontSize: "1.4rem", margin: 0 }}>Mis fichas</h1>
+        </div>
+        <Button onClick={() => setOpen({ id: uuid(), status: "nuevo", answers: {}, meta: {}, photos: [] })}>+ Nueva ficha</Button>
       </div>
       {list.length === 0 ? (
-        <p className="muted">Aún no hay fichas registradas con esta invitación.</p>
+        <p className="muted" style={{ margin: 0 }}>Aún no tiene fichas. Cree la primera: se guarda sola mientras trabaja y puede continuarla otro día.</p>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Fecha de revisión</th><th>Estado</th><th></th></tr></thead>
-            <tbody>
-              {list.map((it) => (
-                <tr key={it.id}>
-                  <td>{it.meta?.reviewDate ?? "—"}</td>
-                  <td>{it.status}</td>
-                  <td>
-                    <button
-                      className="linkbtn"
-                      onClick={async () => {
-                        const d = await getJson(`/api/formulario?id=${it.id}`).catch(() => null);
-                        if (d?.id) setOpen(fromServer(d, false));
-                      }}
-                    >
-                      {it.status === "borrador" ? "Continuar" : "Ver"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="review-list">
+          {list.map((it) => (
+            <li key={it.id} style={{ alignItems: "center" }}>
+              <span className="t">
+                <strong>Revisión {it.meta?.reviewDate ?? "sin fecha"}</strong>
+                <br />
+                <span className="small muted">Creada el {it.created_at.slice(0, 10)}</span>
+              </span>
+              <span className={`tag ${it.status === "borrador" ? "accent" : "ok"}`}>{LIST_LABEL[it.status] ?? it.status}</span>
+              <button
+                className="btn secondary small"
+                onClick={async () => {
+                  const d = await getJson(`/api/formulario?id=${it.id}`).catch(() => null);
+                  if (d?.id) setOpen(fromServer(d, false));
+                }}
+              >
+                {it.status === "borrador" ? "Continuar" : "Ver"}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
 }
 
-function ObservationBody({ initial, observer }: { initial: Loaded; observer: string }) {
+function ObservationBody({ initial, observer, onBack }: { initial: Loaded; observer: string; onBack: () => void }) {
   const d = useDraft(initial);
   const sent = d.status === "completo" || d.status === "incompleto";
+  const total = OBSERVATION.criteria.length;
   const answered = OBSERVATION.criteria.filter((c) => d.answers[c.id]?.value).length;
-  if (sent && initial.status === "nuevo") return <Submitted status={d.status} />;
+  if (sent && initial.status !== "completo" && initial.status !== "incompleto") return <Submitted status={d.status} onBack={onBack} />;
   return (
     <div className="step">
-      {sent && <Notice kind="ok">Ficha enviada ({d.status}). Solo lectura.</Notice>}
-      <p style={{ marginTop: "1rem" }}>{OBSERVATION.objective}</p>
-      <Notice>{OBSERVATION.rule}</Notice>
-      <div className="section grid2">
-        <div className="field">
-          <label htmlFor="rev">Fecha de revisión</label>
-          <input id="rev" type="date" disabled={sent} value={d.meta.reviewDate ?? ""} onChange={(e) => d.setMeta({ ...d.meta, reviewDate: e.target.value })} />
-        </div>
-        <div className="field">
-          <label>Observador</label>
-          <p style={{ margin: "0.6rem 0" }}>{observer}</p>
+      {sent && <div style={{ marginBottom: "1rem" }}><Notice kind="ok">Ficha enviada. Se muestra en solo lectura.</Notice></div>}
+      <div className="card">
+        <p className="eyebrow">Ficha de observación · {total} criterios</p>
+        <h1 style={{ fontSize: "1.5rem" }}>{OBSERVATION.title}</h1>
+        <p className="muted">{OBSERVATION.objective}</p>
+        <details>
+          <summary>Cómo registrar C, P, NC y NV</summary>
+          <p className="small" style={{ margin: 0 }}>{OBSERVATION.rule}</p>
+        </details>
+        <div className="grid2" style={{ marginTop: "1.25rem" }}>
+          <div className="field">
+            <label htmlFor="rev">Fecha de revisión</label>
+            <input id="rev" type="date" disabled={sent} value={d.meta.reviewDate ?? ""} onChange={(e) => d.setMeta({ ...d.meta, reviewDate: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Observador</label>
+            <div className="row" style={{ minHeight: 46 }}>
+              <span className="avatar" aria-hidden>{initials(observer)}</span>
+              {observer}
+            </div>
+          </div>
         </div>
       </div>
       {!sent && (
-        <PersonalFields value={d.personal} onChange={d.setPersonal} purpose="Finalidad: identificar a quien registra la ficha, como figura en el instrumento. Son opcionales, se envían solo al final y se guardan separados de los registros." />
+        <div className="card">
+          <PersonalFields
+            value={d.personal}
+            onChange={d.setPersonal}
+            purpose="Finalidad: identificar a quien registra la ficha, como figura en el instrumento. Son opcionales, se envían solo al final y se guardan separados de los registros."
+          />
+        </div>
       )}
       {OBSERVATION.criteria.map((c) => {
         const sel = d.answers[c.id] ?? {};
         const set = (s: Sel) => d.setAnswers({ ...d.answers, [c.id]: s });
         return (
-          <fieldset className="item" key={c.id}>
-            <legend>
-              <span className="num">{c.n}.</span>
-              <strong>{c.title}:</strong> {c.text}
-            </legend>
+          <fieldset className="card" key={c.id}>
+            <QHead label={`Criterio ${c.n} de ${total}`} badge={sel.value ? <span className="tag ok">{sel.value}</span> : null}>
+              {c.title}: <span style={{ fontWeight: 500 }}>{c.text}</span>
+            </QHead>
             <div className="options inline">
               {OBS_OPTIONS.map((o) => (
                 <label className="opt" key={o.value}>
                   <input type="radio" name={c.id} disabled={sent} checked={sel.value === o.value} onChange={() => set({ ...sel, value: o.value })} />
-                  {o.value} · {o.label}
+                  <span><strong>{o.value}</strong> · {o.label}</span>
                 </label>
               ))}
             </div>
@@ -484,8 +599,8 @@ function ObservationBody({ initial, observer }: { initial: Loaded; observer: str
           </fieldset>
         );
       })}
-      <div className="section">
-        <h3>Síntesis</h3>
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Síntesis</h2>
         <p className="small muted">{OBSERVATION.synthesisNote}</p>
         {OBSERVATION.synthesis.map((s) => (
           <div className="field" key={s.key}>
@@ -495,12 +610,10 @@ function ObservationBody({ initial, observer }: { initial: Loaded; observer: str
         ))}
       </div>
       {!sent && (
-        <div className="section stack">
-          <SaveIndicator state={d.saveState} error={d.saveError} />
-          <p>Registró {answered} de {OBSERVATION.criteria.length} criterios.</p>
-          {d.error && <Notice kind="error">{d.error}</Notice>}
-          <Button busy={d.busy} onClick={d.submit}>{d.error ? "Reintentar envío" : "Enviar ficha"}</Button>
-        </div>
+        <>
+          {d.error && <div style={{ marginTop: "1rem" }}><Notice kind="error">{d.error}</Notice></div>}
+          <StickyBar done={answered} total={total} unit="criterios" d={d} label="Enviar ficha" />
+        </>
       )}
     </div>
   );

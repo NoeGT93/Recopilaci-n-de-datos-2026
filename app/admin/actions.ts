@@ -9,6 +9,7 @@ import { analyze, applyFilters, describeFilters, parseFilters } from "@/lib/anal
 import { METHOD_VERSION } from "@/lib/stats";
 import {
   db, env, now, sha256, randomToken, rateLimit, clientKey, verifyPassword, createSession, destroySession,
+  hashPassword, adminPasswordHash, closeOtherAdminSessions,
   requireRole, audit, loadRecords,
 } from "@/lib/server";
 import { str } from "@/lib/validate";
@@ -25,7 +26,7 @@ async function admin() {
 
 export async function login(_: unknown, form: FormData): Promise<{ error?: string }> {
   if (!(await rateLimit(`login:${await clientKey()}`, 5, 900))) return { error: "Demasiados intentos. Espere 15 minutos." };
-  const ok = await verifyPassword(String(form.get("password") ?? "").slice(0, 200), env().ADMIN_PASSWORD_HASH);
+  const ok = await verifyPassword(String(form.get("password") ?? "").slice(0, 200), await adminPasswordHash());
   if (!ok) {
     await audit("anonimo", "login_fallido", null);
     return { error: "Contraseña incorrecta." };
@@ -33,6 +34,23 @@ export async function login(_: unknown, form: FormData): Promise<{ error?: strin
   await createSession("admin", null);
   await audit("admin", "login", null);
   redirect("/admin");
+}
+
+export async function changePassword(_: unknown, form: FormData): Promise<{ error?: string; ok?: boolean }> {
+  await admin();
+  if (!(await rateLimit(`cambio:${await clientKey()}`, 5, 900))) return { error: "Demasiados intentos. Espere 15 minutos." };
+  const current = String(form.get("current") ?? "").slice(0, 200);
+  const next = String(form.get("next") ?? "");
+  if (!(await verifyPassword(current, await adminPasswordHash()))) return { error: "La contraseña actual no es correcta." };
+  if (next.length < 12 || next.length > 200) return { error: "La nueva contraseña debe tener entre 12 y 200 caracteres." };
+  if (next !== String(form.get("confirm") ?? "")) return { error: "La confirmación no coincide." };
+  await db()
+    .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('admin_password_hash', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
+    .bind(await hashPassword(next), now())
+    .run();
+  await closeOtherAdminSessions();
+  await audit("admin", "cambiar_contrasena", null);
+  return { ok: true };
 }
 
 export async function logout() {

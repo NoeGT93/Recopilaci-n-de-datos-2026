@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import QRCode from "qrcode";
-import { login, createInvitation, revealPersonal } from "@/app/admin/actions";
+import { login, createInvitation, revealPersonal, changePassword } from "@/app/admin/actions";
 import { PERSONAL_FIELDS } from "@/lib/instruments";
 import { Button, Notice } from "./ui";
 
@@ -12,6 +12,7 @@ const LINKS = [
   ["/admin/entrevista", "Entrevista"],
   ["/admin/observacion", "Observación"],
   ["/admin/enlaces", "Enlaces, metas e invitaciones"],
+  ["/admin/contrasena", "Contraseña"],
 ];
 
 export function AdminNav() {
@@ -143,5 +144,26 @@ export function RevealPersonal({ id }: { id: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+export function ChangePasswordForm() {
+  const [state, action, pending] = useActionState(changePassword, {});
+  return (
+    <form action={action} className="stack" style={{ maxWidth: "24rem" }}>
+      {[
+        ["current", "Contraseña actual", "current-password"],
+        ["next", "Nueva contraseña (mínimo 12 caracteres)", "new-password"],
+        ["confirm", "Repita la nueva contraseña", "new-password"],
+      ].map(([name, label, ac]) => (
+        <div className="field" key={name}>
+          <label htmlFor={`pw-${name}`}>{label}</label>
+          <input id={`pw-${name}`} name={name} type="password" autoComplete={ac} minLength={name === "current" ? undefined : 12} required />
+        </div>
+      ))}
+      {state?.error && <Notice kind="error">{state.error}</Notice>}
+      {state?.ok && <Notice kind="ok">Contraseña cambiada. Las demás sesiones de admin se cerraron; use la nueva la próxima vez.</Notice>}
+      <Button busy={pending} type="submit">Cambiar contraseña</Button>
+    </form>
   );
 }

@@ -37,6 +37,20 @@ export async function verifyPassword(password: string, stored: string | undefine
   return safeEqual(b64url(bits), hash);
 }
 
+/** Mismo formato que scripts/hash-password.mjs (100 000 iteraciones: máximo de PBKDF2 en Workers). */
+export async function hashPassword(password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 }, key, 256);
+  return `pbkdf2-sha256$100000$${b64url(salt)}$${b64url(bits)}`;
+}
+
+/** La contraseña cambiada desde el admin (D1) tiene prioridad sobre el secreto inicial. */
+export async function adminPasswordHash() {
+  const row = await db().prepare("SELECT value FROM settings WHERE key = 'admin_password_hash'").first<{ value: string }>();
+  return row?.value ?? env().ADMIN_PASSWORD_HASH;
+}
+
 // ---------- Peticiones ----------
 
 /** IP solo como hash (para límites de intentos); nunca se guarda en claro. */
@@ -136,6 +150,12 @@ export async function getSession(): Promise<Session | null> {
     .bind(await sha256(token), now(), now())
     .first<{ role: Role; invitation_id: string | null; label: string | null }>();
   return row ? { role: row.role, invitationId: row.invitation_id, label: row.label } : null;
+}
+
+/** Cierra todas las sesiones de admin excepto la actual. */
+export async function closeOtherAdminSessions() {
+  const token = (await cookies()).get(COOKIE)?.value ?? "";
+  await db().prepare("DELETE FROM sessions WHERE role = 'admin' AND token_hash != ?").bind(await sha256(token)).run();
 }
 
 export async function destroySession() {

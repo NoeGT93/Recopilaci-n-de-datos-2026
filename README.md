@@ -112,13 +112,20 @@ URL de producción: `https://recopilacion-datos-2026.nescobar1993.workers.dev` (
 
 ## Contraseña del admin
 
+**Forma fácil:** en el admin, pestaña **Contraseña** (`/admin/contrasena`): contraseña actual + nueva
+(mínimo 12 caracteres). Se guarda como hash PBKDF2-SHA256 en D1 (tabla `settings`), reemplaza a la inicial
+y cierra las demás sesiones de admin.
+
+**Por terminal** (contraseña inicial, guardada como secreto del Worker):
+
 ```bash
 npm run --silent hash-password | npx wrangler secret put ADMIN_PASSWORD_HASH
 ```
 
-Pide la contraseña sin mostrarla (mínimo 12 caracteres), genera PBKDF2-SHA256 (100 000 iteraciones,
-el máximo de Workers) y la guarda como secreto. Cambiarla no cierra sesiones abiertas; para cerrarlas
-todas: `npx wrangler d1 execute recopilacion-datos-2026 --remote --command "DELETE FROM sessions"`.
+La contraseña cambiada desde el admin tiene prioridad sobre el secreto. Si se olvida, bórrela para volver
+a la del secreto:
+`npx wrangler d1 execute recopilacion-datos-2026 --remote --command "DELETE FROM settings WHERE key = 'admin_password_hash'"`.
+Para cerrar todas las sesiones: `... --command "DELETE FROM sessions"`.
 
 ## Operación
 

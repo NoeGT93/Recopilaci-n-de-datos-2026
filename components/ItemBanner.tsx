@@ -2,8 +2,9 @@
 // Ilustración de referencia por afirmación (SVG, paleta de la marca). Muestra el TEMA de la pregunta con
 // elementos genéricos (insignia de montañas, letreros sin texto) y no el logotipo ni el nombre real, para no
 // adelantar las respuestas de reconocimiento (ítems 10–15). Luz desde arriba a la izquierda en todas las escenas.
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
 import ItemIcon from "./ItemIcon";
+import CafeScene, { SIDE } from "./CafeScene";
 
 const C = {
   ink: "#151515", white: "#fffaf3", paper: "#fbf6ee",
@@ -619,16 +620,13 @@ function SvgScene({ id }: { id: string }) {
 }
 
 /**
- * Banner de la afirmación: ilustración de línea (banco de imágenes, servida desde R2) sobre fondo crema con un
- * círculo de madera detrás del personaje, el ícono del tema y el filete de madera de la marca.
+ * Banner de la afirmación: personaje de línea (R2) en una cafetería dibujada en el mismo estilo, detrás de un
+ * mostrador con la marca. (SvgScene queda disponible como respaldo dibujado en código.)
  */
 export default function ItemBanner({ id }: { id: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <SvgScene id={id} />;
   return (
-    <div className="item-banner photo" aria-hidden>
-      <span className="banner-sun" />
-      <img src={"/api/ilustraciones/" + id} alt="" decoding="async" onError={() => setFailed(true)} />
+    <div className={"item-banner scene " + (SIDE[id] === "right" ? "topic-left" : "topic-right")} aria-hidden>
+      <CafeScene id={id} />
       <span className="banner-topic"><ItemIcon id={id} /></span>
     </div>
   );

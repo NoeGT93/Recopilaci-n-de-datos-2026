@@ -405,3 +405,13 @@ fieldset.card { min-width: 0; }
 @media (max-width: 30rem) { .item-banner.photo { aspect-ratio: 16 / 10; } }
 .banner-thumb .item-banner.photo { aspect-ratio: 2 / 1; }
 .banner-thumb .banner-topic { display: none; }
+
+/* Escena de cafetería por afirmación (personaje + contexto + mostrador con la marca). */
+.item-banner.scene { position: relative; aspect-ratio: 640 / 340; background: #f6ecdf; border-bottom: 0; }
+.item-banner.scene svg { width: 100%; height: 100%; display: block; }
+.item-banner.scene .banner-topic { position: absolute; top: 10px; }
+.item-banner.scene.topic-right .banner-topic { right: 10px; }
+.item-banner.scene.topic-left .banner-topic { left: 10px; }
+.item-banner.scene .banner-topic .item-icon { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
+.item-banner.scene .banner-topic svg { width: 21px; height: 21px; }
+.banner-thumb .item-banner.scene .banner-topic { display: none; }

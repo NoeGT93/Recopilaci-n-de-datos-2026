@@ -77,7 +77,7 @@ function Progress({ index }: { index: number }) {
       <Cup pct={pct} />
       <div className="meta">
         <div className="count">
-          {index < N ? `Afirmación ${index + 1} de ${N}` : `${N} de ${N}`} · {pct} %
+          {index < N ? `${index + 1} de ${N}` : `${N} de ${N}`} · {pct} %
         </div>
         <p className="mood" aria-live="polite">
           {mood(pct)}
@@ -387,9 +387,6 @@ export default function SurveyForm({ siteKey, channel, mode, media = [] }: { sit
           <ItemBanner key={"b" + idx} id={SURVEY.items[idx].id} />
           <fieldset className="question" key={idx}>
             <legend className="statement" ref={heading as React.RefObject<HTMLLegendElement>} tabIndex={-1}>
-              <span className="statement-head">
-                <span className="statement-num">Afirmación {idx + 1}</span>
-              </span>
               {SURVEY.items[idx].text}
             </legend>
             <p className="small muted" style={{ margin: "-0.6rem 0 0.9rem" }}>Seleccione una opción.</p>

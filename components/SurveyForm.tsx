@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SCALE, SURVEY } from "@/lib/instruments";
 import Turnstile from "./Turnstile";
-import ItemIcon from "./ItemIcon";
+import ItemBanner from "./ItemBanner";
 import { Button, Notice, PersonalFields, postJson, randomKey, store, uuid, type PersonalValues } from "./ui";
 
 type Answers = Record<string, string | null>;
@@ -384,14 +384,15 @@ export default function SurveyForm({ siteKey, channel, mode, media = [] }: { sit
       {idx !== null && (
         <section className="card">
           <Progress index={idx} />
+          <ItemBanner key={"b" + idx} id={SURVEY.items[idx].id} />
           <fieldset className="question" key={idx}>
             <legend className="statement" ref={heading as React.RefObject<HTMLLegendElement>} tabIndex={-1}>
               <span className="statement-head">
-                <ItemIcon id={SURVEY.items[idx].id} />
                 <span className="statement-num">Afirmación {idx + 1}</span>
               </span>
               {SURVEY.items[idx].text}
             </legend>
+            <p className="small muted" style={{ margin: "-0.6rem 0 0.9rem" }}>Seleccione una opción.</p>
             <MediaStrip items={media.filter((m) => m.item === SURVEY.items[idx].id)} />
             <div className="scale">
               {SCALE.map((o, k) => (

@@ -2,7 +2,7 @@
 // Gestión de imágenes de referencia de la encuesta (portada y por afirmación).
 import { useState } from "react";
 import { SURVEY } from "@/lib/instruments";
-import ItemIcon from "./ItemIcon";
+import ItemBanner from "./ItemBanner";
 import { Button, Notice, compress } from "./ui";
 
 type Media = { id: string; item: string; caption: string | null };
@@ -40,7 +40,7 @@ function Slot({ item, title, media, onChange }: { item: string; title: React.Rea
 
   return (
     <div className="media-admin-row">
-      {item === "portada" ? <span className="item-icon" aria-hidden>★</span> : <ItemIcon id={item} />}
+      {item === "portada" ? <span className="item-icon" aria-hidden>★</span> : <div className="banner-thumb"><ItemBanner id={item} /></div>}
       <div>
         <div style={{ fontWeight: 600 }}>{title}</div>
         {mine.length > 0 && (

@@ -385,3 +385,12 @@ fieldset.card { min-width: 0; }
 .media-thumbs img { width: 120px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); display: block; }
 .media-thumbs figcaption { font-size: 0.72rem; color: var(--muted); }
 @media (max-width: 40rem) { .range-row { grid-template-columns: 1fr auto; } .range-track { grid-column: 1 / -1; grid-row: 2; } }
+
+/* ---------- Ilustración por afirmación ---------- */
+.item-banner { margin: 0 0 1.1rem; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); aspect-ratio: 640 / 220; background: #f4e9da; animation: banner-in 260ms var(--ease-out); }
+.item-banner svg { width: 100%; height: 100%; display: block; }
+@keyframes banner-in { from { opacity: 0; transform: scale(0.985); } }
+@media (max-width: 30rem) { .item-banner { aspect-ratio: 640 / 250; } }
+@media (prefers-reduced-motion: reduce) { .item-banner { animation: fade 150ms ease; } }
+.banner-thumb { width: 180px; } .banner-thumb .item-banner { margin: 0; animation: none; } @media (max-width: 40rem) { .media-admin-row { grid-template-columns: 1fr; } .banner-thumb { width: 100%; } }
+.qnav .btn { white-space: normal; text-align: center; line-height: 1.25; }

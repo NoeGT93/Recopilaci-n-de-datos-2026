@@ -16,8 +16,8 @@ explícita que queda registrada en `audit_log`. Las exportaciones analíticas no
 |---|---|---|
 | name | texto | ≤ 100 caracteres, opcional |
 | age | entero | 0–120, opcional |
-| sex | texto | ≤ 100, opcional (texto libre, como en el documento) |
-| education | texto | ≤ 100, opcional |
+| sex | opción | Mujer · Hombre · Prefiero no decir; opcional (ajuste de aplicación, pendiente de revisión) |
+| education | opción | Primaria · Básicos · Diversificado · Universitario · Posgrado (maestría o doctorado) · Prefiero no decir; opcional |
 | job | texto | ≤ 100, opcional |
 
 ## 1. Encuesta a clientes (`encuesta`, `/encuesta/clientes`, pública)

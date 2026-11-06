@@ -22,32 +22,47 @@ const YESNO = [
 /** Mensaje de avance según el porcentaje: corto, sin presión. */
 function mood(pct: number) {
   if (pct === 0) return "Recién servido";
-  if (pct < 34) return "Buen ritmo";
-  if (pct < 50) return "Un tercio de la taza";
-  if (pct < 80) return "¡Más de la mitad!";
+  if (pct < 30) return "Buen ritmo";
+  if (pct < 42) return "Un tercio de la taza";
+  if (pct < 58) return "¡Media taza!";
+  if (pct < 80) return "Más de la mitad";
   if (pct < 100) return "Casi terminamos";
   return "¡Taza llena!";
 }
 
-/** Indicador de avance: una taza que se llena. Decorativa; el texto da la misma información. */
-function Cup({ pct }: { pct: number }) {
-  const body = "M12 18h32l-3.6 30.5a5 5 0 0 1-5 4.5H20.6a5 5 0 0 1-5-4.5z";
+/**
+ * Indicador de avance: una taza que se llena. Decorativa (aria-hidden): el texto da la misma información.
+ * El nivel sube con translateY (no escala, para no deformar la superficie); la superficie ondula en bucle,
+ * cae una gota con cada respuesta y sale vapor al llenarse. Todo se detiene con prefers-reduced-motion.
+ */
+function Cup({ pct, size }: { pct: number; size?: "lg" }) {
+  const body = "M11 17h34l-3.8 31.6a5.5 5.5 0 0 1-5.5 4.9H20.3a5.5 5.5 0 0 1-5.5-4.9z";
+  const level = (1 - pct / 100) * 37 + 2; // 2 = margen bajo el borde cuando está llena
+  const wave = (y: number) => `M-40 ${y} q10 -2.6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 V70 H-40 Z`;
   return (
-    <div className="cup" aria-hidden>
+    <div className={`cup ${size ?? ""}`} aria-hidden>
       <svg viewBox="0 0 64 64">
         <defs>
           <clipPath id="cup-clip">
             <path d={body} />
           </clipPath>
         </defs>
-        <g clipPath="url(#cup-clip)">
-          <rect x="8" y="18" width="40" height="36" fill="var(--accent-soft)" />
-          <rect className="fill" x="8" y="18" width="40" height="36" fill="var(--accent)" style={{ transform: `scaleY(${pct / 100})`, transformBox: "fill-box" }} />
+        <g className="steam" style={{ opacity: pct === 100 ? 1 : 0 }}>
+          <path d="M23 13c-2.2-2.6 2.2-4.3 0-7.5" />
+          <path d="M32 13c-2.2-2.6 2.2-4.3 0-7.5" />
+          <path d="M41 13c-2.2-2.6 2.2-4.3 0-7.5" />
         </g>
-        <path d={body} fill="none" stroke="var(--text)" strokeWidth="2.4" strokeLinejoin="round" />
-        <path d="M43.4 24h3.4a6.5 6.5 0 0 1 0 13h-4.9" fill="none" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
-        <path d="M9 58.5h38" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
-        {pct === 100 && <path d="M22 12c-2-2.5 2-4 0-7M30 12c-2-2.5 2-4 0-7M38 12c-2-2.5 2-4 0-7" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />}
+        <path d={body} fill="#fff" />
+        <g clipPath="url(#cup-clip)">
+          <g className="level" style={{ transform: `translateY(${level}px)` }}>
+            <path className="wave back" d={wave(17)} fill="var(--crema)" />
+            <path className="wave" d={wave(19.5)} fill="var(--coffee)" />
+          </g>
+        </g>
+        {pct > 0 && pct < 100 && <circle key={pct} className="drop" cx="28" cy="6" r="1.8" fill="var(--coffee)" />}
+        <path d={body} fill="none" stroke="var(--ink)" strokeWidth="2.6" strokeLinejoin="round" />
+        <path d="M44.6 23.5h3a6.8 6.8 0 0 1 0 13.6h-5" fill="none" stroke="var(--ink)" strokeWidth="2.6" strokeLinecap="round" />
+        <path d="M6 58.5h44" stroke="var(--wood)" strokeWidth="3.4" strokeLinecap="round" />
       </svg>
     </div>
   );
@@ -250,12 +265,15 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
 
       {st.step === "intro" && (
         <section className="card step">
-          <div className="hero-icon" aria-hidden>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 8h1a4 4 0 1 1 0 8h-1" /><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" /><path d="M6 2v2M10 2v2M14 2v2" />
+          {/* Franja negra con cordillera, como el frente del carrito; la línea de madera evoca su cubierta. */}
+          <div className="hero-band">
+            <svg className="hero-mountains" viewBox="0 0 320 90" aria-hidden>
+              <path d="M0 90 70 38l26 22 48-52 46 46 22-18 50 34 58-24v44Z" fill="#fff" />
+              <path d="m144 8-14 22 7-3 6 6 5-7 8 4Z M70 38l-10 9 6-1 4 4 4-4 5 1Z" fill="#111" />
             </svg>
+            <p className="eyebrow" style={{ color: "var(--wood)" }}>Encuesta · 2026</p>
+            <h1 ref={hRef} tabIndex={-1}>¿Qué opina de Coffee&nbsp;Bike?</h1>
           </div>
-          <h1 ref={hRef} tabIndex={-1} style={{ fontSize: "1.6rem" }}>¿Qué opina de Coffee Bike?</h1>
           <p className="muted">{SURVEY.objective}</p>
           <div className="facts">
             <span className="tag accent">15 afirmaciones</span>
@@ -414,7 +432,7 @@ export default function SurveyForm({ siteKey, channel, mode }: { siteKey: string
 
       {st.step === "done" && (
         <section className="card step" style={{ textAlign: "center" }}>
-          <div style={{ display: "grid", placeItems: "center", marginBottom: "0.5rem" }}><Cup pct={100} /></div>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: "0.5rem" }}><Cup pct={100} size="lg" /></div>
           <h2 ref={hRef} tabIndex={-1} style={{ marginTop: 0 }}>Respuesta recibida</h2>
           <p className="muted" style={{ margin: 0 }}>Sus respuestas quedaron registradas. ¡Gracias por su tiempo! Ya puede cerrar esta página.</p>
         </section>

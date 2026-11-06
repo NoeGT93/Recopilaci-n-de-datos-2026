@@ -1,5 +1,5 @@
 "use client";
-import { PERSONAL_FIELDS } from "@/lib/instruments";
+import { EDUCATION_OPTIONS, PERSONAL_FIELDS, SEX_OPTIONS } from "@/lib/instruments";
 
 export type PersonalValues = Partial<Record<(typeof PERSONAL_FIELDS)[number]["key"], string>>;
 
@@ -22,27 +22,45 @@ export function Notice({ kind, children }: { kind?: "error" | "ok" | "accent"; c
 
 /** Datos personales opcionales: nunca se guardan en el navegador ni en la URL. */
 export function PersonalFields({ value, onChange, purpose }: { value: PersonalValues; onChange: (v: PersonalValues) => void; purpose: string }) {
+  const label = (k: keyof PersonalValues) => PERSONAL_FIELDS.find((f) => f.key === k)!.label;
+  const set = (k: keyof PersonalValues, v: string) => onChange({ ...value, [k]: v });
   return (
     <fieldset>
-      <legend>Datos de identificación (opcionales)</legend>
+      <legend className="sr-only">Datos de identificación (opcionales)</legend>
       <p className="small muted">{purpose}</p>
       <div className="grid2">
-        {PERSONAL_FIELDS.map((f) => (
-          <div className="field" key={f.key}>
-            <label htmlFor={`pd-${f.key}`}>{f.label}</label>
-            <input
-              id={`pd-${f.key}`}
-              type={f.key === "age" ? "number" : "text"}
-              inputMode={f.key === "age" ? "numeric" : undefined}
-              min={f.key === "age" ? 0 : undefined}
-              max={f.key === "age" ? 120 : undefined}
-              maxLength={100}
-              autoComplete="off"
-              value={value[f.key] ?? ""}
-              onChange={(e) => onChange({ ...value, [f.key]: e.target.value })}
-            />
-          </div>
-        ))}
+        <div className="field">
+          <label htmlFor="pd-name">{label("name")}</label>
+          <input id="pd-name" type="text" maxLength={100} autoComplete="off" value={value.name ?? ""} onChange={(e) => set("name", e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="pd-age">{label("age")} <span className="hint" style={{ display: "inline" }}>(años)</span></label>
+          <input id="pd-age" type="number" inputMode="numeric" min={0} max={120} autoComplete="off" value={value.age ?? ""} onChange={(e) => set("age", e.target.value)} />
+        </div>
+      </div>
+      <fieldset className="field">
+        <legend style={{ fontWeight: 550, fontSize: "0.94rem", marginBottom: "0.35rem" }}>{label("sex")}</legend>
+        <div className="chips">
+          {SEX_OPTIONS.map((o) => (
+            <label className="chip" key={o}>
+              <input type="radio" name="pd-sex" checked={value.sex === o} onChange={() => set("sex", o)} onClick={() => value.sex === o && set("sex", "")} />
+              {o}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="grid2">
+        <div className="field">
+          <label htmlFor="pd-education">{label("education")}</label>
+          <select id="pd-education" value={value.education ?? ""} onChange={(e) => set("education", e.target.value)}>
+            <option value="">Seleccione…</option>
+            {EDUCATION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="pd-job">{label("job")}</label>
+          <input id="pd-job" type="text" maxLength={100} autoComplete="organization-title" placeholder="Ej.: estudiante, contador, comerciante" value={value.job ?? ""} onChange={(e) => set("job", e.target.value)} />
+        </div>
       </div>
     </fieldset>
   );

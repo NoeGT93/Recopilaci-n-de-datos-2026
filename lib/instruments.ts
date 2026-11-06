@@ -24,6 +24,18 @@ export const PERSONAL_FIELDS = [
   { key: "job", label: "Puesto de trabajo" },
 ] as const;
 
+// Opciones cerradas para Sexo y Nivel educativo (el documento deja la línea en blanco): ajuste de la
+// aplicación, pendiente de revisión académica. Se guardan como texto en personal_data.
+export const SEX_OPTIONS = ["Mujer", "Hombre", "Prefiero no decir"] as const;
+export const EDUCATION_OPTIONS = [
+  "Primaria",
+  "Básicos",
+  "Diversificado",
+  "Universitario",
+  "Posgrado (maestría o doctorado)",
+  "Prefiero no decir",
+] as const;
+
 // ---------- Encuesta ----------
 
 export const SCALE = [

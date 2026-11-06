@@ -121,3 +121,9 @@ assert.ok(A.toCsv([["a"]]).startsWith("﻿"));
 const pf = A.parseFilters((k) => ({ desde: "2026-11-01", canal: "<x>", estado: "nada" })[k], "1.0");
 assert.deepEqual(pf, { from: "2026-11-01", to: null, channel: null, version: "1.0", status: "todos" });
 console.log("exportación: ok");
+
+// --- Datos personales con opciones cerradas ---
+assert.deepEqual(V.parsePersonal({ sex: "Mujer", education: "Diversificado", age: "34" }), { name: null, age: 34, sex: "Mujer", education: "Diversificado", job: null });
+assert.throws(() => V.parsePersonal({ sex: "X" }), /Sexo: opción inválida/);
+assert.throws(() => V.parsePersonal({ education: "Kinder" }), /Nivel educativo: opción inválida/);
+console.log("datos personales: ok");

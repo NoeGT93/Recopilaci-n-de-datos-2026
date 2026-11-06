@@ -1,6 +1,6 @@
 // Validación en servidor de todo lo que envía un formulario. Devuelve filas listas para D1 o lanza
 // ValidationError con un mensaje seguro (sin eco de datos personales).
-import { SCALE, SURVEY, INTERVIEW, OBSERVATION, OBS_OPTIONS } from "./instruments.ts";
+import { SCALE, SURVEY, INTERVIEW, OBSERVATION, OBS_OPTIONS, SEX_OPTIONS, EDUCATION_OPTIONS } from "./instruments.ts";
 
 export class ValidationError extends Error {}
 
@@ -36,6 +36,12 @@ export function isoDate(v: unknown, field: string): string | null {
   return s;
 }
 
+function oneOf(v: unknown, options: readonly string[], field: string): string | null {
+  const s = str(v, 100, field);
+  if (s !== null && !options.includes(s)) throw new ValidationError(field + ": opción inválida.");
+  return s;
+}
+
 export function parsePersonal(v: unknown): Personal | null {
   if (!isObj(v)) return null;
   let age: number | null = null;
@@ -46,8 +52,8 @@ export function parsePersonal(v: unknown): Personal | null {
   const p = {
     name: str(v.name, 100, "Nombre"),
     age,
-    sex: str(v.sex, 100, "Sexo"),
-    education: str(v.education, 100, "Nivel educativo"),
+    sex: oneOf(v.sex, SEX_OPTIONS, "Sexo"),
+    education: oneOf(v.education, EDUCATION_OPTIONS, "Nivel educativo"),
     job: str(v.job, 100, "Puesto de trabajo"),
   };
   return Object.values(p).some((x) => x !== null) ? p : null;

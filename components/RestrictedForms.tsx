@@ -420,6 +420,7 @@ function InterviewBody({ initial }: { initial: Loaded }) {
         </details>
       </div>
       <div className="card">
+        <h2 style={{ marginTop: 0 }}>Datos de identificación <span className="muted" style={{ fontWeight: 500, fontSize: "0.95rem" }}>(opcionales)</span></h2>
         <PersonalFields
           value={d.personal}
           onChange={d.setPersonal}
@@ -568,6 +569,7 @@ function ObservationBody({ initial, observer, onBack }: { initial: Loaded; obser
       </div>
       {!sent && (
         <div className="card">
+          <h2 style={{ marginTop: 0 }}>Datos de identificación <span className="muted" style={{ fontWeight: 500, fontSize: "0.95rem" }}>(opcionales)</span></h2>
           <PersonalFields
             value={d.personal}
             onChange={d.setPersonal}

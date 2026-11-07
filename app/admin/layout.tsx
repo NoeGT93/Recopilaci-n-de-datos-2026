@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   return (
     <main className="page wide">
-      <div className="row spread" style={{ marginBottom: "1.25rem" }}>
+      <div className="row spread no-print" style={{ marginBottom: "1.25rem" }}>
         <div>
           <p className="eyebrow">Panel del equipo investigador</p>
           <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Administración</h1>

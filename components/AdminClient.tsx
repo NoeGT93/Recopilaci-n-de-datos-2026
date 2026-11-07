@@ -13,13 +13,14 @@ const LINKS = [
   ["/admin/observacion", "Observación"],
   ["/admin/enlaces", "Enlaces y accesos"],
   ["/admin/imagenes", "Imágenes de la encuesta"],
+  ["/admin/imprimir", "Formularios para imprimir"],
   ["/admin/contrasena", "Contraseña"],
 ];
 
 export function AdminNav() {
   const path = usePathname();
   return (
-    <nav className="adminnav" aria-label="Administración">
+    <nav className="adminnav no-print" aria-label="Administración">
       {LINKS.map(([href, label]) => (
         <a key={href} href={href} aria-current={path === href ? "page" : undefined}>
           {label}
@@ -187,5 +188,13 @@ export function ChangePasswordForm() {
       {state?.ok && <Notice kind="ok">Contraseña cambiada. Las demás sesiones de admin se cerraron; use la nueva la próxima vez.</Notice>}
       <Button busy={pending} type="submit">Cambiar contraseña</Button>
     </form>
+  );
+}
+
+export function PrintButton({ label = "Imprimir / Guardar como PDF" }: { label?: string }) {
+  return (
+    <button type="button" className="btn small" onClick={() => window.print()}>
+      {label}
+    </button>
   );
 }

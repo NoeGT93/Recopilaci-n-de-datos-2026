@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { INSTRUMENT_NAMES, SURVEY, SCALE, INTERVIEW, OBSERVATION, OBS_OPTIONS } from "@/lib/instruments";
 import { db, requireRole } from "@/lib/server";
-import { RevealPersonal } from "@/components/AdminClient";
+import { PrintButton, RevealPersonal } from "@/components/AdminClient";
 import { setExclusion, setTest } from "../../actions";
 
 type Sub = {
@@ -45,7 +45,7 @@ export default async function Registro({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="stack">
-      <p><a href={`/admin/${sub.instrument}`}>← {INSTRUMENT_NAMES[sub.instrument]}</a></p>
+      <div className="row spread no-print"><a href={`/admin/${sub.instrument}`}>← {INSTRUMENT_NAMES[sub.instrument]}</a><PrintButton label="Imprimir registro / PDF" /></div>
       <h2 style={{ marginTop: 0 }}>Registro {sub.id.slice(0, 8)}</h2>
       <table>
         <tbody>
@@ -102,16 +102,16 @@ export default async function Registro({ params }: { params: Promise<{ id: strin
       <p className="small muted">Separados de las respuestas. Cada consulta queda en el registro de auditoría.</p>
       <RevealPersonal id={sub.id} />
 
-      <h3>Decisiones analíticas</h3>
-      <p className="small muted">Excluir no borra datos: el registro se conserva y puede reincluirse.</p>
+      <h3 className="no-print">Decisiones analíticas</h3>
+      <p className="small muted no-print">Excluir no borra datos: el registro se conserva y puede reincluirse.</p>
       {sub.reason ? (
-        <form action={setExclusion}>
+        <form action={setExclusion} className="no-print">
           <input type="hidden" name="id" value={sub.id} />
           <input type="hidden" name="op" value="incluir" />
           <button className="btn secondary" type="submit">Reincluir en el análisis</button>
         </form>
       ) : (
-        <form action={setExclusion} className="row">
+        <form action={setExclusion} className="row no-print">
           <input type="hidden" name="id" value={sub.id} />
           <div className="field" style={{ flex: 1, minWidth: "14rem", margin: 0 }}>
             <label htmlFor="reason">Motivo de exclusión</label>
@@ -120,7 +120,7 @@ export default async function Registro({ params }: { params: Promise<{ id: strin
           <button className="btn danger" type="submit" style={{ alignSelf: "end" }}>Excluir del análisis</button>
         </form>
       )}
-      <form action={setTest}>
+      <form action={setTest} className="no-print">
         <input type="hidden" name="id" value={sub.id} />
         <input type="hidden" name="value" value={sub.is_test ? "0" : "1"} />
         <button className="btn secondary" type="submit">{sub.is_test ? "Quitar marca de prueba" : "Marcar como registro de prueba"}</button>

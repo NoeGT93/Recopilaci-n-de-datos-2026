@@ -415,3 +415,46 @@ fieldset.card { min-width: 0; }
 .item-banner.scene .banner-topic .item-icon { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
 .item-banner.scene .banner-topic svg { width: 21px; height: 21px; }
 .banner-thumb .item-banner.scene .banner-topic { display: none; }
+
+/* ---------- Formularios imprimibles (A4) ---------- */
+.print-list { display: grid; gap: 0.6rem; }
+.print-item { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: space-between; align-items: center; padding: 0.8rem 0; border-top: 1px solid var(--border); }
+.print-page { max-width: 210mm; margin: 0 auto; padding: 1rem 1rem 3rem; }
+.print-toolbar { position: sticky; top: 64px; z-index: 5; display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+.pf { background: #fff; color: #000; font: 10.5pt/1.4 var(--font); padding: 14mm 14mm 16mm; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
+.pf p { margin: 0 0 2.2mm; }
+.pf-head { display: grid; grid-template-columns: 1fr auto; gap: 4mm; align-items: center; border-bottom: 1.5pt solid #000; padding-bottom: 3mm; margin-bottom: 4mm; }
+.pf-logo { width: 22mm; height: 22mm; border-radius: 50%; }
+.pf-head p { margin: 0; font-size: 8.5pt; letter-spacing: 0.04em; }
+.pf-head h1 { font-size: 13pt; margin: 1.5mm 0 0; letter-spacing: 0; }
+.pf-folio { font-size: 9pt; align-self: start; white-space: nowrap; }
+.pf-box { display: inline-block; width: 3.6mm; height: 3.6mm; border: 0.9pt solid #000; border-radius: 0.6mm; vertical-align: -0.6mm; }
+.pf-line { display: inline-block; min-width: 20mm; border-bottom: 0.7pt solid #000; height: 1em; vertical-align: -0.2em; }
+.pf-opt { display: inline-flex; align-items: center; gap: 1.2mm; margin-right: 4mm; white-space: nowrap; }
+.pf-note { font-size: 8.5pt; color: #444; }
+.pf-block { margin-top: 3mm; }
+.pf-personal, .pf-adjust { border: 0.7pt solid #000; border-radius: 1.5mm; padding: 2.5mm 3.5mm 1mm; margin-bottom: 3.5mm; }
+.pf-personal p { margin-bottom: 2.6mm; }
+.pf-adjust { background: #f6f3ee; }
+.pf-objective { font-size: 9.5pt; margin: 2mm 0 3mm !important; }
+.pf-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.pf-table th, .pf-table td { border: 0.7pt solid #000; padding: 1.8mm 2mm; text-transform: none; letter-spacing: 0; background: none; color: #000; vertical-align: middle; }
+.pf-table th { font-size: 8.5pt; font-weight: 700; text-align: center; }
+.pf-table .pf-n { width: 8mm; text-align: center; }
+.pf-table .pf-c { width: 17mm; text-align: center; }
+.pf-table tr { break-inside: avoid; }
+.pf-q { border-top: 0.6pt solid #999; padding-top: 2.5mm; margin-top: 2.5mm; break-inside: avoid; }
+.pf-qt { margin-bottom: 1.6mm !important; }
+.pf-qt em { font-size: 8.5pt; color: #444; }
+.pf-opts { display: flex; flex-wrap: wrap; gap: 1.6mm 0; margin-bottom: 2mm; }
+.pf-ref { font-size: 9pt; }
+.pf-foot { margin-top: 4mm !important; font-size: 9pt; text-align: center; }
+
+@page { size: A4; margin: 0; }
+@media print {
+  .print-page { max-width: none; padding: 0; margin: 0; }
+  .pf { box-shadow: none; border: 0; padding: 14mm; }
+  .no-print, .topbar { display: none !important; }
+  body { background: #fff !important; }
+}
+@media print { .admin-shell { display: block; } .admin-main .table-wrap, .admin-main .card { box-shadow: none; } }

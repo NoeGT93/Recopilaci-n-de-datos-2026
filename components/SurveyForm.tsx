@@ -7,7 +7,7 @@ import { Button, Notice, PersonalFields, postJson, randomKey, store, uuid, type 
 
 type Answers = Record<string, string | null>;
 // Paso numérico = índice de la afirmación (0–14), una por pantalla.
-type Step = "intro" | "consent" | "filters" | "personal" | number | "review" | "done" | "ineligible";
+export type Step = "intro" | "consent" | "filters" | "personal" | number | "review" | "done" | "ineligible";
 // Lo que se guarda en este dispositivo: id opaco, clave del borrador y respuestas. Nunca datos personales.
 type Saved = { id: string; key: string; step: Step; answers: Answers; started: boolean };
 
@@ -112,8 +112,10 @@ function MediaStrip({ items }: { items: Media[] }) {
   );
 }
 
-export default function SurveyForm({ siteKey, channel, mode, media = [] }: { siteKey: string; channel: string; mode: "prueba" | "abierto"; media?: Media[] }) {
-  const [s, setS] = useState<Saved | null>(null);
+/** previewStep: muestra una pantalla fija, sin red ni almacenamiento (vista web para anexos). */
+export default function SurveyForm({ siteKey, channel, mode, media = [], previewStep }: { siteKey: string; channel: string; mode: "prueba" | "abierto"; media?: Media[]; previewStep?: Step }) {
+  const preview = previewStep !== undefined;
+  const [s, setS] = useState<Saved | null>(preview ? { id: "preview", key: "", step: previewStep, answers: {}, started: false } : null);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [adult, setAdult] = useState<boolean | null>(null);
   const [consumed, setConsumed] = useState<boolean | null>(null);
@@ -131,6 +133,7 @@ export default function SurveyForm({ siteKey, channel, mode, media = [] }: { sit
 
   // Recuperar borrador de este dispositivo.
   useEffect(() => {
+    if (preview) return;
     const saved = store.get<Saved>(KEY);
     if (saved?.started && saved.step !== "done" && saved.step !== "ineligible") setResumable(saved);
     else setS({ id: uuid(), key: randomKey(), step: "intro", answers: {}, started: false });
@@ -176,7 +179,7 @@ export default function SurveyForm({ siteKey, channel, mode, media = [] }: { sit
   // Teclado en computadora: 1–4 eligen, ← vuelve, → pasa a la siguiente.
   const stepNow = s?.step;
   useEffect(() => {
-    if (typeof stepNow !== "number") return;
+    if (preview || typeof stepNow !== "number") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const n = Number(e.key);
@@ -352,7 +355,7 @@ export default function SurveyForm({ siteKey, channel, mode, media = [] }: { sit
             </>
           )}
           <p className="small muted">El consentimiento y estas preguntas de elegibilidad son ajustes de la aplicación, pendientes de revisión académica.</p>
-          <Turnstile siteKey={siteKey} onToken={setToken} resetKey={tsReset} />
+          {preview ? <div className="turnstile-ph">Verificación de seguridad (Cloudflare Turnstile)</div> : <Turnstile siteKey={siteKey} onToken={setToken} resetKey={tsReset} />}
           {error && <Notice kind="error">{error}</Notice>}
           <div className="actions">
             <button className="btn ghost" onClick={() => go(st.step === "consent" ? "intro" : "consent")}>Atrás</button>

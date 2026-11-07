@@ -458,3 +458,21 @@ fieldset.card { min-width: 0; }
   body { background: #fff !important; }
 }
 @media print { .admin-shell { display: block; } .admin-main .table-wrap, .admin-main .card { box-shadow: none; } }
+
+/* ---------- Vista web para anexos ---------- */
+.annex-screen { margin: 0 0 1.75rem; }
+.annex-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wood-dark); margin: 0 0 0.5rem; }
+.annex-frame { background: var(--bg); border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 0.75rem; }
+.annex-frame .sticky-bar { position: static; margin: 1rem 0 0; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+.turnstile-ph { min-height: 65px; display: grid; place-items: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--muted); background: var(--surface-2); margin: 0.5rem 0; }
+.annex-frame .step, .annex-frame .question, .annex-frame .item-banner { animation: none; }
+@media print {
+  .annex-page { max-width: none; padding: 0 8mm; }
+  body:has(.annex-page) { print-color-adjust: exact; -webkit-print-color-adjust: exact; background: var(--bg) !important; }
+  body:has(.annex-page) .topbar { display: block !important; position: static; }
+  .annex-page * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .annex-screen { break-inside: avoid; page-break-inside: avoid; margin-bottom: 6mm; }
+  .annex-frame .sticky-bar { display: flex !important; }
+  .annex-frame .card { box-shadow: none; }
+}
+.annex-frame .scale .key { display: none; }

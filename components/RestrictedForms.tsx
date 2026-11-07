@@ -176,7 +176,7 @@ function Photos({ item, photos, setPhotos, ensureSaved, submissionId, disabled }
 type Sel = { values?: string[]; value?: string; other?: string; note?: string; url?: string; date?: string };
 type Answers = Record<string, Sel>;
 type Meta = { reviewDate?: string; synthesis?: Record<string, string> };
-type Loaded = { id: string; status: string; answers: Answers; meta: Meta; photos: Photo[] };
+export type Loaded = { id: string; status: string; answers: Answers; meta: Meta; photos: Photo[] };
 
 function fromServer(d: { id: string; status: string; meta: Meta | null; answers: { item: string; value: string | null; text: string | null }[]; evidence: { id: string; item: string; kind: string; text: string | null; url: string | null; material_date: string | null; size: number }[] }, multi: boolean): Loaded {
   const answers: Answers = {};
@@ -367,7 +367,7 @@ export function InterviewForm() {
   return <InterviewBody initial={loaded} />;
 }
 
-function InterviewBody({ initial }: { initial: Loaded }) {
+export function InterviewBody({ initial }: { initial: Loaded }) {
   const d = useDraft(initial);
   if (d.status === "completo" || d.status === "incompleto") return <Submitted status={d.status} />;
   const total = INTERVIEW.questions.length;
@@ -501,7 +501,7 @@ export function ObservationApp({ observer }: { observer: string }) {
   );
 }
 
-function ObservationBody({ initial, observer, onBack }: { initial: Loaded; observer: string; onBack: () => void }) {
+export function ObservationBody({ initial, observer, onBack }: { initial: Loaded; observer: string; onBack: () => void }) {
   const d = useDraft(initial);
   const sent = d.status === "completo" || d.status === "incompleto";
   const total = OBSERVATION.criteria.length;

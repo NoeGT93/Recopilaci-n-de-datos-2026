@@ -13,7 +13,7 @@ const LINKS = [
   ["/admin/observacion", "Observación"],
   ["/admin/enlaces", "Enlaces y accesos"],
   ["/admin/imagenes", "Imágenes de la encuesta"],
-  ["/admin/imprimir", "Formularios para imprimir"],
+  ["/admin/imprimir", "Anexos y formularios en papel"],
   ["/admin/contrasena", "Contraseña"],
 ];
 
